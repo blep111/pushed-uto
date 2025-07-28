@@ -35,7 +35,7 @@ module.exports.run = async function({
                         eventCommands.forEach((eventCommand, index) => {
                                 helpMessage += `╭─────────────────╮\n |\t『 ${index + 1}.』  ${prefix}${eventCommand}\n╰─────────────────╯ \n`;
                         });
-                        helpMessage += `\nPage ${page}/${Math.ceil(commands.length / pages)}. To view the next page, type '${prefix}help page number'. To view information about a specific command, type '${prefix}help command name-make your own bot here 🌐: https://messenger-automation-bot.onrender.com/'.`;
+                        helpMessage += `\nPage ${page}/${Math.ceil(commands.length / pages)}. To view the next page, type '${prefix}help page number'. To view information about a specific command, type '${prefix}help command name-make your own bot here 🌐: https://messenger-automated-bot.onrender.com/'.`;
                         api.sendMessage(helpMessage, event.threadID, event.messageID);
                 } else if (!isNaN(input)) {
                         const page = parseInt(input);
