@@ -93,7 +93,7 @@ module.exports.handleEvent = async function({
                 messageID,
                 body
         } = event;
-        const message = prefix ? 'This is my prefix: ' + prefix :
+        const message = prefix ? 'This is my prefix: ' + prefix : "";
         if (body?.toLowerCase().startsWith('prefix')) {
                 api.sendMessage(message, threadID, messageID);
         }
