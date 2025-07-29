@@ -28,7 +28,7 @@ module.exports.run = async function ({ api, event }) {
   const { threadID, messageID } = event;
   const botPrefix = config.prefix || "/";
   const botName = config.botName || "𝘃𝗲𝗿𝗻";
-  const gifUrl = "https://i.imgur.com/fAqt7Ar.mp4";
+  const gifUrl = "https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUycmo2a2VhZHVsenZ2bzNmY2dxMGUyMzhqMWV0bnprc25zOWRobW5ueiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/T2ugQmi6mJOyiIwZtR/giphy.gif";
 
   const tempFilePath = path.join(__dirname, `prefix_${Date.now()}.gif`);
 
