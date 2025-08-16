@@ -12,7 +12,7 @@ module.exports.handleEvent = async function ({ api, event }) {
         const senderID = addedParticipants[0].userFbId;
         let name = await api.getUserInfo(senderID).then(info => info[senderID].name);
 
-        // Truncate name if it's too long
+        // Truncate long names
         const maxLength = 15;
         if (name.length > maxLength) {
             name = name.substring(0, maxLength - 3) + '...';
@@ -24,11 +24,17 @@ module.exports.handleEvent = async function ({ api, event }) {
         const groupName = groupInfo.threadName || "this group";
         const background = groupInfo.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
 
-        const url = `https://ace-rest-api.onrender.com/api/welcome?username=Lance&avatarUrl=https://i.imgur.com/xwCoQ5H.jpeg&groupname=Ajironian&bg=https://i.ibb.co/4YBNyvP/images-76.jpg&memberCount=25/profile?uid=${senderID}&groupname=${encodeURIComponent(groupName)}&bg=${encodeURIComponent(background)}&memberCount=${memberCount}`;
+        // Build clean URL
+        const url = `https://ace-rest-api.onrender.com/api/welcome?username=${encodeURIComponent(name)}&avatarUrl=https://i.imgur.com/xwCoQ5H.jpeg&uid=${senderID}&groupname=${encodeURIComponent(groupName)}&bg=${encodeURIComponent(background)}&memberCount=${memberCount}`;
 
         try {
             const { data } = await axios.get(url, { responseType: 'arraybuffer' });
-            const filePath = './script/cache/welcome_image.jpg';
+
+            // Ensure cache folder exists
+            const dir = './script/cache';
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+            const filePath = `${dir}/welcome_image.jpg`;
             fs.writeFileSync(filePath, Buffer.from(data));
 
             api.sendMessage({
