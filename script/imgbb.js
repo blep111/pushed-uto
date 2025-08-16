@@ -25,7 +25,7 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
-  const apiUrl = `https://kaiz-apis.gleeze.com/api/imgbb?url=${encodeURIComponent(imageUrl)}&apikey=c956f6c9-46e1-41ba-967b-1895d3e34159`;
+  const apiUrl = `https://kaiz-apis.gleeze.com/api/imgbb?url=${encodeURIComponent(imageUrl)}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
   api.sendMessage(
     '🌐 Uploading the image to IMGBB, please wait...',
