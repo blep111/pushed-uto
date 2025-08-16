@@ -1,46 +1,45 @@
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path'); // Added for path manipulation
 
 module.exports.config = {
-  name: "welcome",
-  version: "1.0.0",
+    name: "welcome",
+    version: "1.0.0",
 };
 
-module.exports.handleEvent = async function({ api, event }) {
-  if (event.logMessageType === "log:subscribe") {
-    const addedParticipants = event.logMessageData.addedParticipants;
-    const senderID = addedParticipants[0].userFbId;
+module.exports.handleEvent = async function ({ api, event }) {
+    if (event.logMessageType === "log:subscribe") {
+        const addedParticipants = event.logMessageData.addedParticipants;
+        const senderID = addedParticipants[0].userFbId;
+        let name = await api.getUserInfo(senderID).then(info => info[senderID].name);
 
-    try {
-      const userInfo = await api.getUserInfo(senderID);
-      const name = userInfo[senderID].name.substring(0, 12) + "..."; // Safer truncation
+        // Truncate name if it's too long
+        const maxLength = 15;
+        if (name.length > maxLength) {
+            name = name.substring(0, maxLength - 3) + '...';
+        }
 
-      const groupInfo = await api.getThreadInfo(event.threadID);
-      const groupName = groupInfo.threadName || "this group";
-      const background = groupInfo.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
-      const memberCount = groupInfo.participantIDs.length;
+        const groupInfo = await api.getThreadInfo(event.threadID);
+        const groupIcon = groupInfo.imageSrc || "https://i.ibb.co/G5mJZxs/rin.jpg";
+        const memberCount = groupInfo.participantIDs.length;
+        const groupName = groupInfo.threadName || "this group";
+        const background = groupInfo.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
 
-      // Improved URL construction - removes unnecessary Lance etc.
-      const url = `https://ace-rest-api.onrender.com/api/welcome?username=${encodeURIComponent(name)}&groupname=${encodeURIComponent(groupName)}&bg=${encodeURIComponent(background)}&memberCount=${memberCount}`;
+        const url = `https://ace-rest-api.onrender.com/api/welcome?username=Lance&avatarUrl=https://i.imgur.com/xwCoQ5H.jpeg&groupname=Ajironian&bg=https://i.ibb.co/4YBNyvP/images-76.jpg&memberCount=25/profile?uid=${senderID}&groupname=${encodeURIComponent(groupName)}&bg=${encodeURIComponent(background)}&memberCount=${memberCount}`;
 
+        try {
+            const { data } = await axios.get(url, { responseType: 'arraybuffer' });
+            const filePath = './script/cache/welcome_image.jpg';
+            fs.writeFileSync(filePath, Buffer.from(data));
 
-      const tempDir = path.join(__dirname, 'temp'); // Create a temporary directory for the image
-      fs.mkdirSync(tempDir, { recursive: true }); // Ensure the directory exists
-
-      const filePath = path.join(tempDir, 'welcome_image.jpg');
-
-      const response = await axios.get(url, { responseType: 'arraybuffer' });
-      fs.writeFileSync(filePath, Buffer.from(response.data));
-
-      api.sendMessage({
-        body: `Everyone welcome the new member ${name} to ${groupName}!`,
-        attachment: fs.createReadStream(filePath),
-      }, event.threadID, () => fs.unlinkSync(filePath)); //Delete after sending
-
-    } catch (error) {
-      console.error("Error processing welcome message:", error);
-      api.sendMessage({ body: `Everyone welcome the new member ${name} to ${groupName}!` }, event.threadID);
+            api.sendMessage({
+                body: `Everyone welcome the new member ${name} to ${groupName}!`,
+                attachment: fs.createReadStream(filePath)
+            }, event.threadID, () => fs.unlinkSync(filePath));
+        } catch (error) {
+            console.error("Error fetching welcome image:", error);
+            api.sendMessage({
+                body: `Everyone welcome the new member ${name} to ${groupName}!`
+            }, event.threadID);
+        }
     }
-  }
 };
