@@ -22,8 +22,7 @@ module.exports.handleEvent = async function ({ api, event }) {
         const memberCount = groupInfo.participantIDs.length;
         const background = groupInfo.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
 
-        const url = `https://ace-rest-api.onrender.com/api/goodbye?pp=https://i.imgur.com/xwCoQ5H.jpeg&nama=Lance&bg=https://i.ibb.co/4YBNyvP/images-76.jpg&member=25/profile?uid=${leftID}&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}
-`;
+        const url = `https://ace-rest-api.onrender.com/api/goodbye?pp=https://i.imgur.com/xwCoQ5H.jpeg&nama=Lance&bg=https://i.ibb.co/4YBNyvP/images-76.jpg&member=25/profile?uid=${leftID}&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}`;
 
         try {
             const { data } = await axios.get(url, { responseType: 'arraybuffer' });
