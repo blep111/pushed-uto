@@ -24,7 +24,7 @@ module.exports.handleEvent = async function ({ api, event }) {
         const memberCount = groupInfo.participantIDs 
             ? groupInfo.participantIDs.length 
             : groupInfo.userInfo.length;
-        const background = groupInfo?.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
+        const background = groupInfo?.imageSrc || "https://i.ibb.co/Z118DLcF/462576954-552487881010265-5827931299252633869-n-jpg-stp-dst-jpg-p480x480-tt6-nc-cat-103-ccb-1-7-nc-s.jpg";
 
         const url = `https://ace-rest-api.onrender.com/api/goodbye?pp=https://i.imgur.com/xwCoQ5H.jpeg&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}&uid=${leftID}`;
 
