@@ -26,7 +26,7 @@ module.exports.handleEvent = async function ({ api, event }) {
             : groupInfo.userInfo.length;
         const background = groupInfo?.imageSrc || "https://i.ibb.co/Z118DLcF/462576954-552487881010265-5827931299252633869-n-jpg-stp-dst-jpg-p480x480-tt6-nc-cat-103-ccb-1-7-nc-s.jpg";
 
-        const url = `https://ace-rest-api.onrender.com/api/goodbye?pp=https://i.imgur.com/xwCoQ5H.jpeg&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}&uid=${leftID}`;
+        const url = `https://ace-rest-api.onrender.com/api/goodbye?pp=https://i.ibb.co/C30QgGPz/529830749-4177003352544733-179563933163909132-n-jpg-stp-dst-jpg-s480x480-tt6-nc-cat-109-ccb-1-7-nc-s.jpg&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}&uid=${leftID}`;
 
         try {
             const { data } = await axios.get(url, { responseType: 'arraybuffer' });
