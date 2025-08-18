@@ -22,7 +22,7 @@ module.exports.handleEvent = async function ({ api, event }) {
         const groupIcon = groupInfo.imageSrc || "https://i.ibb.co/G5mJZxs/rin.jpg";
         const memberCount = groupInfo.participantIDs.length;
         const groupName = groupInfo.threadName || "this group";
-        const background = groupInfo.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
+        const background = groupInfo.imageSrc || " https://i.ibb.co/C30QgGPz/529830749-4177003352544733-179563933163909132-n-jpg-stp-dst-jpg-s480x480-tt6-nc-cat-109-ccb-1-7-nc-s.jpg";
 
         // Build clean URL
         const url = `https://ace-rest-api.onrender.com/api/welcome?username=${encodeURIComponent(name)}&avatarUrl=https://i.imgur.com/xwCoQ5H.jpeg&uid=${senderID}&groupname=${encodeURIComponent(groupName)}&bg=${encodeURIComponent(background)}&memberCount=${memberCount}`;
