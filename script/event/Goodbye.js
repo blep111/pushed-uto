@@ -9,9 +9,11 @@ module.exports.config = {
 module.exports.handleEvent = async function ({ api, event }) {
     if (event.logMessageType === "log:unsubscribe") {
         const leftID = event.logMessageData.leftParticipantFbId;
-        let name = await api.getUserInfo(leftID).then(info => info[leftID].name);
+        
+        const info = await api.getUserInfo(leftID);
+        let name = info[leftID].name;
 
-        // Truncate name if it's too long
+        // Truncate name if too long
         const maxLength = 15;
         if (name.length > maxLength) {
             name = name.substring(0, maxLength - 3) + '...';
@@ -19,13 +21,20 @@ module.exports.handleEvent = async function ({ api, event }) {
 
         const groupInfo = await api.getThreadInfo(event.threadID);
         const groupName = groupInfo.threadName || "this group";
-        const memberCount = groupInfo.participantIDs.length;
-        const background = groupInfo.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
+        const memberCount = groupInfo.participantIDs 
+            ? groupInfo.participantIDs.length 
+            : groupInfo.userInfo.length;
+        const background = groupInfo?.imageSrc || "https://i.ibb.co/4YBNyvP/images-76.jpg";
 
-        const url = `https://hershey-api.onrender.com/api/goodbye?pp=https://api-canvass.vercel.app/profile?uid=${leftID}&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}`;
+        const url = `https://ace-rest-api.onrender.com/api/goodbye?pp=https://i.imgur.com/xwCoQ5H.jpeg&nama=${encodeURIComponent(name)}&bg=${encodeURIComponent(background)}&member=${memberCount}&uid=${leftID}`;
 
         try {
             const { data } = await axios.get(url, { responseType: 'arraybuffer' });
+
+            if (!fs.existsSync('./script/cache')) {
+                fs.mkdirSync('./script/cache', { recursive: true });
+            }
+
             const filePath = './script/cache/goodbye_image.jpg';
             fs.writeFileSync(filePath, Buffer.from(data));
 
