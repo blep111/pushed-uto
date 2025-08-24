@@ -27,7 +27,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
     // Fetch from the Gemini API
-    const res = await axios.get("https://ace-rest-api.onrender.com/api/gemini?text=", {
+    const res = await axios.get("https://ace-rest-api.onrender.com/api/gemini/", {
       params: { prompt }
     });
 
