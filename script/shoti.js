@@ -20,9 +20,9 @@ module.exports.run = async function ({ api, event }) {
         api.sendMessage("🎬 𝗙𝗲𝘁𝗰𝗵𝗶𝗻𝗴 𝗮 𝗿𝗮𝗻𝗱𝗼𝗺 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼, 𝗽𝗹𝗲𝗮𝘀𝗲 𝘄𝗮𝗶𝘁...", event.threadID, event.messageID);
 
         // API call
-        const response = await axios.get('https://shoti.fbbot.org/api/get-shoti?type=video', {
+        const response = await axios.get('https://kaiz-apis.gleeze.com/?fbclid=IwZXh0bgNhZW0CMTEAAR5UMTk6EoB4fReOqcLZHUyAJ6mu0JY6Fw0v6P3WLyvgEpIRmvkPwehmk4wWKg_aem_l_tAqvRdq-wW5gc-NnFzsQ', {
             headers: {
-                apikey: '$shoti-54c9a5966a',
+                apikey: '4fe7e522-70b7-420b-a746-d7a23db49ee5',
             },
         });
 
