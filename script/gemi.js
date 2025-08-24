@@ -3,13 +3,12 @@ const axios = require("axios");
 module.exports.config = {
   name: "gemini",
   version: "1.0.0",
-  hasPermission: 0,
+  role: 0,
   credits: "Vern",
   description: "Ask the Gemini AI a question and get a thoughtful answer.",
   commandCategory: "ai",
   usages: "gemini [question]",
   cooldowns: 5,
-  role: 0,
   hasPrefix: true
 };
 
@@ -21,21 +20,23 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       "❓ Please provide a question to ask Gemini.\n\nUsage: gemini What is love?",
       threadID,
+      () => {},
       messageID
     );
   }
 
   try {
     // Fetch from the Gemini API
-    const res = await axios.get("https://ace-rest-api.onrender.com/api/gemini", {
+    const res = await axios.get("https://ace-rest-api.onrender.com/api/gemini/text", {
       params: { prompt }
     });
 
-    const answer = res.data?.response;
+    const answer = res.data?.response || res.data?.answer || res.data?.text;
     if (!answer) {
       return api.sendMessage(
         "⚠️ No response received from Gemini. Try again later.",
         threadID,
+        () => {},
         messageID
       );
     }
@@ -47,6 +48,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🤖 𝗚𝗲𝗺𝗶𝗻𝗶 𝗥𝗲𝘀𝗽𝗼𝗻𝘀𝗲:\n\n${output}`,
       threadID,
+      () => {},
       messageID
     );
   } catch (err) {
@@ -54,6 +56,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       "🚫 Failed to reach Gemini API. Please try again later.",
       threadID,
+      () => {},
       messageID
     );
   }
