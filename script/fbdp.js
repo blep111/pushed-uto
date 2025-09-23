@@ -2,10 +2,10 @@ const axios = require('axios');
 
 module.exports.config = {
   name: "fbdp",
-  version: "1.1.0",
+  version: "1.0.1",
   role: 0,
   credits: "vern",
-  description: "Get Facebook profile picture by user ID (via Kaiz API).",
+  description: "Get Facebook profile picture by user ID.",
   usage: "/hack <facebook_id>",
   prefix: true,
   cooldowns: 3,
@@ -34,25 +34,25 @@ module.exports.run = async function ({ api, event, args }) {
     const waitMsg = `════『 𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗔𝗩𝗔𝗧𝗔𝗥 』════\n\n📤 Fetching avatar for ID: ${id}\nPlease wait...`;
     await api.sendMessage(waitMsg, threadID, messageID);
 
-    // Call the Kaiz API
+    // Call Kaiz API (get JSON response)
     const res = await axios.get(apiUrl);
 
     if (!res.data || !res.data.url) {
       return api.sendMessage(
-        `🚫 Could not retrieve avatar.\nReason: API returned invalid response.`,
+        `🚫 Failed to fetch avatar.\nReason: Invalid API response.`,
         threadID,
         messageID
       );
     }
 
-    // Fetch the actual image as a stream
-    const imgStream = await axios.get(res.data.url, { responseType: "stream" });
+    // Download the avatar image as a stream
+    const response = await axios.get(res.data.url, { responseType: "stream" });
 
     // Send the image as an attachment
     return api.sendMessage(
       {
         body: `Here is the Facebook avatar of ID: ${id}\n\n> Powered by Kaiz API`,
-        attachment: imgStream.data
+        attachment: response.data
       },
       threadID,
       messageID
