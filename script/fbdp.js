@@ -2,10 +2,10 @@ const axios = require('axios');
 
 module.exports.config = {
   name: "fbdp",
-  version: "1.0.0",
+  version: "1.1.0",
   role: 0,
   credits: "vern",
-  description: "Get Facebook profile picture by user ID.",
+  description: "Get Facebook profile picture by user ID (via Kaiz API).",
   usage: "/hack <facebook_id>",
   prefix: true,
   cooldowns: 3,
@@ -21,27 +21,38 @@ module.exports.run = async function ({ api, event, args }) {
       `════『 𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗔𝗩𝗔𝗧𝗔𝗥 』════\n\n` +
       `⚠️ Please provide a Facebook user ID.\n\n` +
       `📌 Usage: ${prefix}hack <facebook_id>\n` +
-      `💬 Example: ${prefix}get 100000000000000\n\n` +
+      `💬 Example: ${prefix}hack 61579990924831\n\n` +
       `> vern cute`;
     return api.sendMessage(usageMessage, threadID, messageID);
   }
 
   const id = args[0];
-  const apiUrl = `https://graph.facebook.com/${id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`;
+  const apiUrl = `https://kaiz-apis.gleeze.com/api/facebookpfp?uid=${id}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
   try {
     // Loading message
     const waitMsg = `════『 𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗔𝗩𝗔𝗧𝗔𝗥 』════\n\n📤 Fetching avatar for ID: ${id}\nPlease wait...`;
     await api.sendMessage(waitMsg, threadID, messageID);
 
-    // Download the avatar image as a stream
-    const response = await axios.get(apiUrl, { responseType: "stream" });
+    // Call the Kaiz API
+    const res = await axios.get(apiUrl);
+
+    if (!res.data || !res.data.url) {
+      return api.sendMessage(
+        `🚫 Could not retrieve avatar.\nReason: API returned invalid response.`,
+        threadID,
+        messageID
+      );
+    }
+
+    // Fetch the actual image as a stream
+    const imgStream = await axios.get(res.data.url, { responseType: "stream" });
 
     // Send the image as an attachment
     return api.sendMessage(
       {
-        body: `Here is the Facebook avatar of ID: ${id}\n\n> Powered by Facebook Graph API`,
-        attachment: response.data
+        body: `Here is the Facebook avatar of ID: ${id}\n\n> Powered by Kaiz API`,
+        attachment: imgStream.data
       },
       threadID,
       messageID
@@ -51,7 +62,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     const errorMessage =
       `════『 𝗙𝗔𝗖𝗘𝗕𝗢𝗢𝗞 𝗔𝗩𝗔𝗧𝗔𝗥 𝗘𝗥𝗥𝗢𝗥 』════\n\n` +
-      `🚫 Failed to fetch the avatar.\nReason: ${error.response?.data?.error?.message || error.message || 'Unknown error'}\n\n` +
+      `🚫 Failed to fetch the avatar.\nReason: ${error.response?.data?.error || error.message || 'Unknown error'}\n\n` +
       `> Please try again later.`;
 
     return api.sendMessage(errorMessage, threadID, messageID);
