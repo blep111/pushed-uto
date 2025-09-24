@@ -1,16 +1,15 @@
 const axios = require('axios');
 
 module.exports.config = {
-  name: 'ai',
-  version: '1.0.1',
+  name: 'gpt',
+  version: '1.0.0',
   role: 0,
-  prefix: true,
+  hasPrefix: false,
   aliases: ['gpt', 'gimage'],
-  description: "Ask AI or analyze an image.",
-  usage: "ai [question] or reply to an image",
+  description: "Analyze question or Vision",
+  usage: "gpt [question] or reply to an image",
   credits: 'Vern',
-  cooldowns: 3,
-  category: "ai"
+  cooldown: 3,
 };
 
 module.exports.run = async function({ api, event, args }) {
@@ -25,7 +24,7 @@ module.exports.run = async function({ api, event, args }) {
     return api.sendMessage("❌ Please provide a prompt or reply to an image.", threadID, messageID);
   }
 
-  api.sendMessage('🤖 Processing your request...', threadID, async (err, info) => {
+  api.sendMessage('🤖 𝗔𝗜 𝗜𝗦 𝗣𝗥𝗢𝗖𝗘𝗦𝗦𝗜𝗡𝗚 𝗬𝗢𝗨𝗥 𝗥𝗘𝗤𝗨𝗘𝗦𝗧...', threadID, async (err, info) => {
     if (err) return;
 
     try {
@@ -34,32 +33,28 @@ module.exports.run = async function({ api, event, args }) {
         imageUrl = event.messageReply.attachments[0].url;
       }
 
-      // Call the AI API properly
-      const { data } = await axios.get("https://aryanapi.up.railway.app/api/geminii", {
+      const { data } = await axios.get("https://xvi-rest-api.vercel.app/api/chatgpt4", {
         params: {
-          prompt: finalPrompt || "Explain this image",
-          imageurl: imageUrl || ""
+          ask: finalPrompt,
+          imagurl: imageUrl
         }
       });
 
-      console.log("🔎 AI Response:", data); // Debugging
+      const responseText = data.description || "❌ No response received from AI.";
 
-      const responseText = data.description || data.result || data.response || "❌ No response received from AI.";
-
-      // Get user name
+      // Optional: Get user's name
       api.getUserInfo(senderID, (err, infoUser) => {
-        const userName = (!err && infoUser?.[senderID]?.name) ? infoUser[senderID].name : "User";
+        const userName = infoUser?.[senderID]?.name || "Unknown User";
         const timePH = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
-
         const replyMessage = `🤖 𝗔𝗜 𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧\n━━━━━━━━━━━━━━━━━━\n${responseText}\n━━━━━━━━━━━━━━━━━━\n🗣 𝗔𝘀𝗸𝗲𝗱 𝗕𝘆: ${userName}\n⏰ 𝗧𝗶𝗺𝗲: ${timePH}`;
 
-        api.sendMessage(replyMessage, threadID, messageID);
+        api.editMessage(replyMessage, info.messageID);
       });
 
     } catch (error) {
-      console.error("AI Error:", error.response?.data || error.message || error);
+      console.error("AI Error:", error);
       const errMsg = "❌ Error: " + (error.response?.data?.message || error.message || "Unknown error occurred.");
-      api.sendMessage(errMsg, threadID, messageID);
+      api.editMessage(errMsg, info.messageID);
     }
   });
 };
