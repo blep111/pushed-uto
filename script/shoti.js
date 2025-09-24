@@ -1,6 +1,6 @@
 const axios = require('axios');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs-extra');
 
 module.exports.config = {
     name: "shoti",
@@ -16,48 +16,43 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event }) {
     try {
-        api.sendMessage("🎬 Fetching a random Shoti video, please wait...", event.threadID, () => {}, event.messageID);
+        api.sendMessage("🎬 Fetching a random Shoti video, please wait...", event.threadID, event.messageID);
 
-        // API call
-        const response = await axios.get('https://kaiz-apis.gleeze.com/?fbclid=IwZXh0bgNhZW0CMTEAAR5UMTk6EoB4fReOqcLZHUyAJ6mu0JY6Fw0v6P3WLyvgEpIRmvkPwehmk4wWKg_aem_l_tAqvRdq-wW5gc-NnFzsQ', {
-            headers: { apikey: '4fe7e522-70b7-420b-a746-d7a23db49ee5' }
-        });
-
-        const videoUrl = response.data?.result?.content 
-                      || response.data?.result?.url 
-                      || response.data?.url;
-
+        // API call without unnecessary headers
+        const response = await axios.get('https://kaiz-apis.gleeze.com/api/shoti?apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5');
+        
+        const videoUrl = response.data?.result?.video;
         if (!videoUrl) {
-            return api.sendMessage("❌ Failed to fetch Shoti video. Try again later.", event.threadID, () => {}, event.messageID);
+            return api.sendMessage('❌ Failed to fetch a Shoti video. Please try again later.', event.threadID, event.messageID);
         }
 
         const fileName = `${event.messageID}.mp4`;
         const filePath = path.join(__dirname, fileName);
 
         const downloadResponse = await axios({
-            method: "GET",
+            method: 'GET',
             url: videoUrl,
-            responseType: "stream"
+            responseType: 'stream',
         });
 
         const writer = fs.createWriteStream(filePath);
         downloadResponse.data.pipe(writer);
 
-        writer.on("close", () => {
+        writer.on('finish', async () => {
             api.sendMessage({
-                body: "🎥 Here’s your random Shoti video!",
+                body: '🎥 Here’s your random Shoti video!',
                 attachment: fs.createReadStream(filePath)
-            }, event.threadID, () => fs.unlinkSync(filePath), event.messageID);
+            }, event.threadID, () => {
+                fs.unlinkSync(filePath);
+            }, event.messageID);
         });
 
-        writer.on("error", (err) => {
-            console.error("Download error:", err);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            api.sendMessage("🚫 Error downloading the video. Please try again.", event.threadID, () => {}, event.messageID);
+        writer.on('error', () => {
+            api.sendMessage('🚫 Error downloading the video. Please try again.', event.threadID, event.messageID);
         });
 
     } catch (error) {
-        console.error("Error fetching Shoti video:", error);
-        api.sendMessage("🚫 Error fetching Shoti video. Try again later.", event.threadID, () => {}, event.messageID);
+        console.error('Error fetching Shoti video:', error?.response?.data || error.message);
+        api.sendMessage('🚫 Error fetching Shoti video. Try again later.', event.threadID, event.messageID);
     }
 };
