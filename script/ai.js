@@ -5,7 +5,7 @@ module.exports.config = {
   version: '1.0.0',
   role: 0,
   hasPrefix: false,
-  aliases: ['gpt4', 'ask'],
+  aliases: ['assistant', 'ask'],
   description: "Chat with ChatGPT-4 API",
   usage: "chatgpt [your question]",
   credits: 'Vern',
@@ -24,7 +24,7 @@ module.exports.run = async function({ api, event, args }) {
     return api.sendMessage("❌ Please provide a prompt or reply to a message.", threadID, messageID);
   }
 
-  api.sendMessage('🤖 ChatGPT-4 is processing your request...', threadID, async (err, info) => {
+  api.sendMessage('🤖 𝗩-𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧 is processing your request...', threadID, async (err, info) => {
     if (err) return;
 
     try {
@@ -38,7 +38,7 @@ module.exports.run = async function({ api, event, args }) {
       api.getUserInfo(senderID, (err, infoUser) => {
         const userName = infoUser?.[senderID]?.name || "Unknown User";
         const timePH = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
-        const replyMessage = `🤖 𝗖𝗵𝗮𝘁𝗚𝗣𝗧-𝟰 𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧\n━━━━━━━━━━━━━━━━━━\n${responseText}\n━━━━━━━━━━━━━━━━━━\n🗣 𝗔𝘀𝗸𝗲𝗱 𝗯𝘆: ${userName}\n⏰ 𝗧𝗶𝗺𝗲: ${timePH}`;
+        const replyMessage = `🤖 𝗩-𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧\n━━━━━━━━━━━━━━━━━━\n${responseText}\n━━━━━━━━━━━━━━━━━━\n🗣 𝗔𝘀𝗸𝗲𝗱 𝗯𝘆: ${userName}\n⏰ 𝗧𝗶𝗺𝗲: ${timePH}`;
 
         api.editMessage(replyMessage, info.messageID);
       });
