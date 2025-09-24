@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "gemini",
-  version: "1.0.0",
+  version: "1.0.1",
   role: 0,
   credits: "Vern",
   description: "Ask the Gemini AI a question and get a thoughtful answer.",
@@ -20,43 +20,42 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       "❓ Please provide a question to ask Gemini.\n\nUsage: gemini What is love?",
       threadID,
-      () => {},
       messageID
     );
   }
 
   try {
-    // Fetch from the Gemini API
-    const res = await axios.get("https://aryanapi.up.railway.app/api/gemini/text", {
+    // Fetch from Gemini API (no hardcoded hello)
+    const res = await axios.get("https://aryanapi.up.railway.app/api/gemini", {
       params: { prompt }
     });
 
-    const answer = res.data?.response || res.data?.answer || res.data?.text;
+    // Adjust based on actual API response
+    const answer = res.data?.response || res.data?.result || res.data?.answer || res.data?.text;
+
     if (!answer) {
       return api.sendMessage(
         "⚠️ No response received from Gemini. Try again later.",
         threadID,
-        () => {},
         messageID
       );
     }
 
-    // Trim if too long
-    const maxLen = 2000;
+    // Safe max length
+    const maxLen = 1200;
     const output = answer.length > maxLen ? answer.slice(0, maxLen) + "..." : answer;
 
     return api.sendMessage(
       `🤖 𝗚𝗲𝗺𝗶𝗻𝗶 𝗥𝗲𝘀𝗽𝗼𝗻𝘀𝗲:\n\n${output}`,
       threadID,
-      () => {},
       messageID
     );
   } catch (err) {
-    console.error("[gemini.js] API Error:", err.response?.data || err.message);
+    const errorMsg = err.response?.data?.error || err.message;
+    console.error("[gemini.js] API Error:", errorMsg);
     return api.sendMessage(
-      "🚫 Failed to reach Gemini API. Please try again later.",
+      `🚫 Failed to reach Gemini API.\nError: ${errorMsg}`,
       threadID,
-      () => {},
       messageID
     );
   }
