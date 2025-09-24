@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "gemini",
-  version: "1.0.1",
+  version: "1.0.2",
   role: 0,
   credits: "Vern",
   description: "Ask the Gemini AI a question and get a thoughtful answer.",
@@ -25,13 +25,16 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   try {
-    // Fetch from Gemini API (no hardcoded hello)
-    const res = await axios.get("https://aryanapi.up.railway.app/api/gemini", {
-      params: { prompt }
-    });
+    // ✅ Try POST (most Gemini APIs require POST)
+    const res = await axios.post("https://aryanapi.up.railway.app/api/gemini", { prompt });
 
-    // Adjust based on actual API response
-    const answer = res.data?.response || res.data?.result || res.data?.answer || res.data?.text;
+    // ✅ Adjust based on likely response format
+    const answer =
+      res.data?.response ||
+      res.data?.result ||
+      res.data?.answer ||
+      res.data?.text ||
+      res.data?.message;
 
     if (!answer) {
       return api.sendMessage(
@@ -41,7 +44,6 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
-    // Safe max length
     const maxLen = 1200;
     const output = answer.length > maxLen ? answer.slice(0, maxLen) + "..." : answer;
 
