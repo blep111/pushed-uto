@@ -21,7 +21,7 @@ module.exports.run = async function ({ api, event }) {
     api.sendMessage("📥 Fetching TikTok video, please wait...", threadID, () => {}, messageID);
 
     // Call API
-    const res = await axios.get('https://xvi-rest-api.vercel.app/api/tiktok?query=bini');
+    const res = await axios.get('https://xvi-rest-api.vercel.app/api/tiktok?query=dancing');
     const videoUrl = res.data?.details?.videoUrl || res.data?.videoUrl || res.data?.url;
 
     if (!videoUrl) {
