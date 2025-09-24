@@ -27,7 +27,7 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   const id = args[0];
-  const apiUrl = `https://graph.facebook.com/${id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`;
+  const apiUrl = `https://kaiz-apis.gleeze.com/api/facebookpfp?uid=${id}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
   try {
     // Loading message
