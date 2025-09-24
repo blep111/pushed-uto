@@ -2,14 +2,15 @@ const axios = require('axios');
 
 module.exports.config = {
   name: 'ai',
-  version: '1.0.0',
+  version: '1.0.1',
   role: 0,
-  hasPrefix: false,
+  prefix: true,
   aliases: ['gpt', 'gimage'],
-  description: "Analyze question or Vision",
+  description: "Ask AI or analyze an image.",
   usage: "ai [question] or reply to an image",
   credits: 'Vern',
-  cooldown: 3,
+  cooldowns: 3,
+  category: "ai"
 };
 
 module.exports.run = async function({ api, event, args }) {
@@ -24,7 +25,7 @@ module.exports.run = async function({ api, event, args }) {
     return api.sendMessage("❌ Please provide a prompt or reply to an image.", threadID, messageID);
   }
 
-  api.sendMessage('🤖 𝗔𝗜 𝗜𝗦 𝗣𝗥𝗢𝗖𝗘𝗦𝗦𝗜𝗡𝗚 𝗬𝗢𝗨𝗥 𝗥𝗘𝗤𝗨𝗘𝗦𝗧...', threadID, async (err, info) => {
+  api.sendMessage('🤖 Processing your request...', threadID, async (err, info) => {
     if (err) return;
 
     try {
@@ -33,28 +34,32 @@ module.exports.run = async function({ api, event, args }) {
         imageUrl = event.messageReply.attachments[0].url;
       }
 
-      const { data } = await axios.get("https://aryanapi.up.railway.app/api/geminii?prompt=Explain+this+image&imageurl=https%3A%2F%2Fi.ibb.co%2FVcP1LDk3%2F9f1db9ed90bb.jpg", {
+      // Call the AI API properly
+      const { data } = await axios.get("https://aryanapi.up.railway.app/api/geminii", {
         params: {
-          ask: finalPrompt,
-          imagurl: imageUrl
+          prompt: finalPrompt || "Explain this image",
+          imageurl: imageUrl || ""
         }
       });
 
-      const responseText = data.description || "❌ No response received from AI.";
+      console.log("🔎 AI Response:", data); // Debugging
 
-      // Optional: Get user's name
+      const responseText = data.description || data.result || data.response || "❌ No response received from AI.";
+
+      // Get user name
       api.getUserInfo(senderID, (err, infoUser) => {
-        const userName = infoUser?.[senderID]?.name || "Unknown User";
+        const userName = (!err && infoUser?.[senderID]?.name) ? infoUser[senderID].name : "User";
         const timePH = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
+
         const replyMessage = `🤖 𝗔𝗜 𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧\n━━━━━━━━━━━━━━━━━━\n${responseText}\n━━━━━━━━━━━━━━━━━━\n🗣 𝗔𝘀𝗸𝗲𝗱 𝗕𝘆: ${userName}\n⏰ 𝗧𝗶𝗺𝗲: ${timePH}`;
 
-        api.editMessage(replyMessage, info.messageID);
+        api.sendMessage(replyMessage, threadID, messageID);
       });
 
     } catch (error) {
-      console.error("AI Error:", error);
+      console.error("AI Error:", error.response?.data || error.message || error);
       const errMsg = "❌ Error: " + (error.response?.data?.message || error.message || "Unknown error occurred.");
-      api.editMessage(errMsg, info.messageID);
+      api.sendMessage(errMsg, threadID, messageID);
     }
   });
 };
