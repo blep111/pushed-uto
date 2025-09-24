@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
     name: "fbdp",
-    version: "1.0",
+    version: "1.1",
     role: 0,   // anyone can use
     description: "Fetch Facebook profile picture by user ID.",
     prefix: true,
@@ -28,15 +28,22 @@ module.exports.run = async function ({ api, event, args }) {
     const apiUrl = `https://kaiz-apis.gleeze.com/api/facebookpfp?uid=${id}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
     try {
-        // First call Kaiz API to get the PFP link
+        // Call Kaiz API
         const res = await axios.get(apiUrl);
-        if (!res.data || !res.data.url) {
-            return api.sendMessage("❌ Failed to fetch avatar. Invalid API response.", threadID, messageID);
+        let imageUrl;
+
+        // Handle different possible structures from Kaiz API
+        if (res.data.url) {
+            imageUrl = res.data.url;
+        } else if (res.data.result) {
+            imageUrl = res.data.result;
+        } else if (typeof res.data === "string") {
+            imageUrl = res.data;
+        } else {
+            return api.sendMessage("❌ Failed to fetch avatar. API response invalid.", threadID, messageID);
         }
 
-        const imageUrl = res.data.url;
-
-        // Download the image as a stream
+        // Download the image
         const response = await axios({
             url: imageUrl,
             method: "GET",
@@ -76,7 +83,7 @@ module.exports.run = async function ({ api, event, args }) {
         );
 
     } catch (error) {
-        console.error("❌ Error fetching avatar:", error);
+        console.error("❌ Error fetching avatar:", error.response?.data || error.message || error);
         return api.sendMessage(
             "❌ Failed to fetch the avatar. Please check the ID or try again later.",
             threadID,
