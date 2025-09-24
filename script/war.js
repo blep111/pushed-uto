@@ -115,6 +115,6 @@ module.exports.run = async function({ api, args, event, admin }) {
                 a({ body: "bobo ampota delete mona facebook mo tanga ka " });
         }, 155000);
         setTimeout(() => {
-                a({ body: "tanginamo mag malalim pa puke mo kisa sa iniisip ko at d pa tayo tapos" });
+                a({ body: "tanginamo mag malalim pa puke mo kisa sa iniisip ko at d pa tayo tapos, Try mo lang galitin si Vern" });
         }, 165000);
 };
