@@ -6,8 +6,8 @@ module.exports.config = {
   role: 0,
   hasPrefix: false,
   aliases: ['gpt4', 'ask'],
-  description: "Chat with ChatGPT-4",
-  usage: "chatgpt [question]",
+  description: "Chat with ChatGPT-4 API",
+  usage: "chatgpt [your question]",
   credits: 'Vern',
   cooldown: 3,
 };
@@ -24,7 +24,7 @@ module.exports.run = async function({ api, event, args }) {
     return api.sendMessage("❌ Please provide a prompt or reply to a message.", threadID, messageID);
   }
 
-  api.sendMessage('🤖 𝗖𝗵𝗮𝘁𝗚𝗣𝗧-𝟰 𝗶𝘀 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁...', threadID, async (err, info) => {
+  api.sendMessage('🤖 ChatGPT-4 is processing your request...', threadID, async (err, info) => {
     if (err) return;
 
     try {
@@ -34,17 +34,11 @@ module.exports.run = async function({ api, event, args }) {
 
       const responseText = data.response || "❌ No response received from ChatGPT-4.";
 
+      // Get user's name for better UX
       api.getUserInfo(senderID, (err, infoUser) => {
         const userName = infoUser?.[senderID]?.name || "Unknown User";
         const timePH = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
-
-        const replyMessage =
-          `🤖 𝗖𝗵𝗮𝘁𝗚𝗣𝗧-𝟰 𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `${responseText}\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `🗣 𝗔𝘀𝗸𝗲𝗱 𝗯𝘆: ${userName}\n` +
-          `⏰ 𝗧𝗶𝗺𝗲: ${timePH}`;
+        const replyMessage = `🤖 𝗖𝗵𝗮𝘁𝗚𝗣𝗧-𝟰 𝗔𝗦𝗦𝗜𝗦𝗧𝗔𝗡𝗧\n━━━━━━━━━━━━━━━━━━\n${responseText}\n━━━━━━━━━━━━━━━━━━\n🗣 𝗔𝘀𝗸𝗲𝗱 𝗯𝘆: ${userName}\n⏰ 𝗧𝗶𝗺𝗲: ${timePH}`;
 
         api.editMessage(replyMessage, info.messageID);
       });
