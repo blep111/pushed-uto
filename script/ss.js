@@ -29,8 +29,8 @@ module.exports.run = async function({ api, event, args }) {
     );
   }
 
-  const apiKey = "f810244328efffe65edb02e899789cdc1b5303156dd950a644a6f2637ce564f0";
-  const apiUrl = `https://haji-mix.up.railway.app/api/screenshot?url=${encodeURIComponent(targetUrl)}&api_key=${apiKey}`;
+  const apiKey = "4fe7e522-70b7-420b-a746-d7a23db49ee5";
+  const apiUrl = `https://kaiz-apis.gleeze.com/api/screenshot?url=${encodeURIComponent(targetUrl)}&api_key=${apiKey}`;
 
   // Notify user
   await api.sendMessage("🖥️ Generating screenshot, please wait...", threadID, messageID);
