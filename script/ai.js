@@ -33,7 +33,7 @@ module.exports.run = async function({ api, event, args }) {
         imageUrl = event.messageReply.attachments[0].url;
       }
 
-      const { data } = await axios.get("https://apis-rho-nine.vercel.app/gemini", {
+      const { data } = await axios.get("https://aryanapi.up.railway.app/api/geminii?prompt=Explain+this+image&imageurl=https%3A%2F%2Fi.ibb.co%2FVcP1LDk3%2F9f1db9ed90bb.jpg", {
         params: {
           ask: finalPrompt,
           imagurl: imageUrl
