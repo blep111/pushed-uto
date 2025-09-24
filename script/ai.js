@@ -1,12 +1,12 @@
 const axios = require('axios');
 
 module.exports.config = {
-  name: 'gpt',
+  name: 'chatgpt',
   version: '1.0.0',
   role: 0,
   hasPrefix: false,
   aliases: ['gpt4', 'ask'],
-  description: "Ask a question",
+  description: "Chat with ChatGPT-4 API",
   usage: "chatgpt [your question]",
   credits: 'Vern',
   cooldown: 3,
@@ -24,19 +24,17 @@ module.exports.run = async function({ api, event, args }) {
     return api.sendMessage("❌ Please provide a prompt or reply to a message.", threadID, messageID);
   }
 
-  api.sendMessage('🤖 𝗖𝗵𝗮𝘁𝗚𝗣𝗧-𝟰 𝗶𝘀 𝗽𝗿𝗼𝗰𝗲𝘀𝘀𝗶𝗻𝗴 𝘆𝗼𝘂𝗿 𝗿𝗲𝗾𝘂𝗲𝘀𝘁...', threadID, async (err, info) => {
+  api.sendMessage('🤖 ChatGPT-4 is processing your request...', threadID, async (err, info) => {
     if (err) return;
 
     try {
       const { data } = await axios.get("https://xvi-rest-api.vercel.app/api/chatgpt4", {
-        params: {
-          prompt: finalPrompt
-        }
+        params: { prompt: finalPrompt }
       });
 
       const responseText = data.response || "❌ No response received from ChatGPT-4.";
 
-      // Optional: Get user's name
+      // Get user's name for better UX
       api.getUserInfo(senderID, (err, infoUser) => {
         const userName = infoUser?.[senderID]?.name || "Unknown User";
         const timePH = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
