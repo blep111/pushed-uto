@@ -9,7 +9,7 @@ try {
   config = JSON.parse(fs.readFileSync(path.join(__dirname, "../config.json")));
 } catch (e) {
   config.prefix = "-";
-  config.botName = "𝘃𝗲𝗿𝗻";
+  config.botName = "NAX BOT";
 }
 
 module.exports.config = {
@@ -19,7 +19,7 @@ module.exports.config = {
   description: "Displays the bot's prefix and a GIF.",
   prefix: true,
   premium: false,
-  credits: "vern",
+  credits: "nax",
   cooldowns: 5,
   category: "info"
 };
