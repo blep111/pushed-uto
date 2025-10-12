@@ -1,10 +1,5 @@
 const axios = require("axios");
-
-const activeSessions = new Map();
-
-function getPHTime() {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-}
+const { PassThrough } = require("stream"); // For proper attachment handling
 
 module.exports.config = {
   name: "ss",
@@ -27,26 +22,32 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   const targetUrl = args[0].trim();
-  // validate URL (basic)
   if (!/^https?:\/\//i.test(targetUrl)) {
     return api.sendMessage("⚠️ Please provide a valid URL starting with http:// or https://", threadID, messageID);
   }
 
-  // encode it properly
   const encoded = encodeURIComponent(targetUrl);
   const apiUrl = `https://urangkapolka.vercel.app/api/screenshot?url=${encoded}`;
 
   try {
-    // get image as stream / buffer
     const resp = await axios.get(apiUrl, {
       responseType: "arraybuffer"
     });
 
-    const imageBuffer = Buffer.from(resp.data, "binary");
+    // Validate image response
+    if (
+      !resp.headers["content-type"]?.startsWith("image/") ||
+      resp.status !== 200
+    ) {
+      throw new Error("No image returned from API");
+    }
 
-    // send as attachment
+    // Convert buffer to readable stream for attachment
+    const imageStream = new PassThrough();
+    imageStream.end(resp.data);
+
     await api.sendMessage(
-      { body: `📷 Screenshot of: ${targetUrl}`, attachment: imageBuffer },
+      { body: `📷 Screenshot of: ${targetUrl}`, attachment: imageStream },
       threadID,
       messageID
     );
