@@ -26,7 +26,7 @@ const fs = require('fs').promises;
 const pidusage = require('pidusage');
 
 module.exports.config = {
-    name: "uptime",
+    name: "up",
     version: "1.0.2",
     role: 0,
     credits: "Vern",
