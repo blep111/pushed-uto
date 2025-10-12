@@ -9,7 +9,7 @@ module.exports.config = {
   hasPrefix: true,
   aliases: ["getvideo", "ytvideo"],
   description: "Get a video from Kaiz API by query and send it to chat.",
-  usage: "video <query>",
+  usage: "yt <query>",
   credits: "Kaizenji, VernesG",
   cooldown: 10,
 };
@@ -19,7 +19,7 @@ module.exports.run = async function ({ api, event, args }) {
   const messageID = event.messageID;
 
   if (!args.length) {
-    return api.sendMessage("📌 Usage: video <query>\nExample: video dancing", threadID, messageID);
+    return api.sendMessage("📌 Usage: yt <query>\nExample: yt dancing", threadID, messageID);
   }
 
   const query = args.join(" ").trim();
@@ -35,13 +35,25 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     // Download video file
-    const downloadResp = await axios.get(data.download_url, { responseType: "stream" });
+    const downloadResp = await axios({
+      method: "GET",
+      url: data.download_url,
+      responseType: "stream",
+      headers: {
+        // Some video servers require a user-agent
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
+
     const fileName = `${messageID}-video.mp4`;
     const filePath = path.join(__dirname, fileName);
     const writer = fs.createWriteStream(filePath);
+
+    // Pipe the video stream to the file
     downloadResp.data.pipe(writer);
 
-    writer.on("close", async () => {
+    // Handle finish and error events
+    writer.on("finish", async () => {
       let msg =
         `🎬 ${data.title || "Video"}\n` +
         (data.author ? `• Author: ${data.author}\n` : "") +
