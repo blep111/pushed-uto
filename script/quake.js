@@ -39,17 +39,17 @@ async function checkForUpdates(api) {
   const data = await fetchEarthquakeData();
   if (!data || !data.details) return;
 
-  const latestId = data.details.timestamp;
-  if (!latestId) return;
+  const quake = data.details;
+  // Use informationNumber as unique event id (if available), else fallback to timestamp
+  const uniqueQuakeId = quake.informationNumber || quake.timestamp;
+  if (!uniqueQuakeId) return;
 
-  // Notify all active sessions if new quake is detected
   for (const [threadID, session] of activeSessions.entries()) {
     const lastSent = lastEarthquakeCache.get(threadID);
-    if (lastSent === latestId) continue; // already notified
+    if (lastSent === uniqueQuakeId) continue; // already notified, skip
 
-    lastEarthquakeCache.set(threadID, latestId);
+    lastEarthquakeCache.set(threadID, uniqueQuakeId);
 
-    const quake = data.details;
     const dateTime = quake.dateTime || "Unknown Time";
     const location = quake.location || "Unknown Location";
     const magnitude = quake.magnitude || "N/A";
