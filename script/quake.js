@@ -1,7 +1,9 @@
 const axios = require("axios");
 
-const activeSessions = new Map();
+const activeSessions = new Map(); // Use threadID as key for group support
 const lastEarthquakeCache = new Map();
+
+let monitorStarted = false; // Prevent multiple intervals
 
 function getPHTime() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
@@ -41,11 +43,11 @@ async function checkForUpdates(api) {
   if (!latestId) return;
 
   // Notify all active sessions if new quake is detected
-  for (const [senderId, session] of activeSessions.entries()) {
-    const lastSent = lastEarthquakeCache.get(senderId);
+  for (const [threadID, session] of activeSessions.entries()) {
+    const lastSent = lastEarthquakeCache.get(threadID);
     if (lastSent === latestId) continue; // already notified
 
-    lastEarthquakeCache.set(senderId, latestId);
+    lastEarthquakeCache.set(threadID, latestId);
 
     const quake = data.details;
     const dateTime = quake.dateTime || "Unknown Time";
@@ -70,17 +72,21 @@ async function checkForUpdates(api) {
 ━━━━━━━━━━━━━━━
 `;
 
-    if (mapImg) {
-      await api.sendMessage({ body: msg, attachment: await global.utils.getStreamFromURL(mapImg) }, session.threadID);
+    if (mapImg && global.utils?.getStreamFromURL) {
+      await api.sendMessage({ body: msg, attachment: await global.utils.getStreamFromURL(mapImg) }, threadID);
     } else {
-      await api.sendMessage(msg, session.threadID);
+      await api.sendMessage(msg, threadID);
     }
   }
 }
 
 // Continuous monitoring
 async function startEarthquakeMonitor(api) {
-  setInterval(() => checkForUpdates(api), 15000); // check every 15s
+  if (monitorStarted) return;
+  monitorStarted = true;
+  setInterval(() => {
+    checkForUpdates(api).catch(console.error);
+  }, 15000); // check every 15s
 }
 
 module.exports.config = {
@@ -91,23 +97,22 @@ module.exports.config = {
   aliases: [],
   description: "Auto earthquake tracker using PHIVOLCS live data.",
   usage: "earthquake on | off",
-  credits: "DeansG Mangubat",
+  credits: "Nax",
   cooldown: 5,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const senderId = event.senderID;
   const threadID = event.threadID;
   const messageID = event.messageID;
 
   const subcmd = args[0]?.toLowerCase();
 
   if (subcmd === "off") {
-    if (!activeSessions.has(senderId)) {
+    if (!activeSessions.has(threadID)) {
       return api.sendMessage("⚠️ You don't have an active earthquake session.", threadID, messageID);
     }
-    activeSessions.delete(senderId);
-    lastEarthquakeCache.delete(senderId);
+    activeSessions.delete(threadID);
+    lastEarthquakeCache.delete(threadID);
     return api.sendMessage("🛑 Earthquake monitoring stopped.", threadID, messageID);
   }
 
@@ -115,11 +120,11 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("📌 Usage:\n• earthquake on — start monitoring\n• earthquake off — stop monitoring", threadID, messageID);
   }
 
-  if (activeSessions.has(senderId)) {
+  if (activeSessions.has(threadID)) {
     return api.sendMessage("📡 You're already tracking earthquakes. Use 'earthquake off' to stop.", threadID, messageID);
   }
 
-  activeSessions.set(senderId, { threadID });
+  activeSessions.set(threadID, { threadID });
   api.sendMessage("✅ Earthquake monitoring activated! You'll be notified automatically when new quakes are detected.", threadID, messageID);
 
   // start background checker
