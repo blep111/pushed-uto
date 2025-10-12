@@ -38,7 +38,7 @@ module.exports.run = async function({ api, event, args }) {
 
   // Fetch quiz
   try {
-    const res = await axios.get("https://kaiz-apis.gleeze.com/api/quiz?limit=1&apikey=bbcc44b9-4710-41c7-8034-fa2000ea7ae5");
+    const res = await axios.get("https://kaiz-apis.gleeze.com/api/quiz?limit=1&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5");
     const q = res.data.questions[0];
 
     const message = `🧠 𝗤𝘂𝗶𝘇 𝗧𝗶𝗺𝗲!
