@@ -1,5 +1,6 @@
 const axios = require("axios");
-const { PassThrough } = require("stream"); // For proper attachment handling
+const fs = require("fs-extra");
+const path = require("path");
 
 module.exports.config = {
   name: "ss",
@@ -30,27 +31,41 @@ module.exports.run = async function ({ api, event, args }) {
   const apiUrl = `https://urangkapolka.vercel.app/api/screenshot?url=${encoded}`;
 
   try {
-    const resp = await axios.get(apiUrl, {
-      responseType: "arraybuffer"
+    // Step 1: Get screenshot info from API
+    const resp = await axios.get(apiUrl);
+    // The API response: { status: "success", image: "https://..." }
+    if (!resp.data || resp.data.status !== "success" || !resp.data.image) {
+      throw new Error("No image link returned from API");
+    }
+    const imageUrl = resp.data.image;
+
+    // Step 2: Download the image from the returned URL
+    const imgResp = await axios.get(imageUrl, { responseType: "stream" });
+
+    // Step 3: Save to temp file, send then clean up
+    const fileName = `${messageID}.png`;
+    const filePath = path.join(__dirname, fileName);
+
+    const writer = fs.createWriteStream(filePath);
+    imgResp.data.pipe(writer);
+
+    writer.on('close', async () => {
+      await api.sendMessage(
+        {
+          body: `📷 Screenshot of: ${targetUrl}`,
+          attachment: fs.createReadStream(filePath)
+        },
+        threadID,
+        () => fs.unlink(filePath, () => {}),
+        messageID
+      );
     });
 
-    // Validate image response
-    if (
-      !resp.headers["content-type"]?.startsWith("image/") ||
-      resp.status !== 200
-    ) {
-      throw new Error("No image returned from API");
-    }
+    writer.on('error', (err) => {
+      console.error("File write error:", err);
+      api.sendMessage("❌ Error saving screenshot file.", threadID, messageID);
+    });
 
-    // Convert buffer to readable stream for attachment
-    const imageStream = new PassThrough();
-    imageStream.end(resp.data);
-
-    await api.sendMessage(
-      { body: `📷 Screenshot of: ${targetUrl}`, attachment: imageStream },
-      threadID,
-      messageID
-    );
   } catch (err) {
     console.error("Screenshot API error:", err);
     return api.sendMessage("❌ Failed to get screenshot. Please try again later.", threadID, messageID);
