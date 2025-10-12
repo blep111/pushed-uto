@@ -21,11 +21,12 @@ module.exports.run = async function ({ api, event }) {
 
         // API call
         const response = await axios.get('https://kaiz-apis.gleeze.com/api/shoti?apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5');
+        //console.log(response.data); // For debugging
 
-        // The API returns { result: { url: '...' } }
-        const videoUrl = response.data?.result?.url;
+        const shoti = response.data?.shoti;
+        const videoUrl = shoti?.videoUrl;
         if (!videoUrl) {
-            return api.sendMessage('❌ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗳𝗲𝘁𝗰𝗵 𝗮 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼. 𝗣𝗹𝗲𝗮𝘀𝗲 𝘁𝗿𝘆 𝗮𝗴𝗮𝗶𝗻 𝗹𝗮𝘁𝗲𝗿.', event.threadID, event.messageID);
+            return api.sendMessage('❌ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗴𝗲𝘁 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼. 𝗣𝗹𝗲𝗮𝘀𝗲 𝘁𝗿𝘆 𝗮𝗴𝗮𝗶𝗻 𝗹𝗮𝘁𝗲𝗿.', event.threadID, event.messageID);
         }
 
         const fileName = `${event.messageID}.mp4`;
@@ -35,21 +36,23 @@ module.exports.run = async function ({ api, event }) {
             method: 'GET',
             url: videoUrl,
             responseType: 'stream',
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
         const writer = fs.createWriteStream(filePath);
         downloadResponse.data.pipe(writer);
 
-        writer.on('finish', async () => {
+        writer.on('close', async () => {
             api.sendMessage({
-                body: '🎥 𝗛𝗲𝗿𝗲’𝘀 𝘆𝗼𝘂𝗿 𝗿𝗮𝗻𝗱𝗼𝗺 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼!',
+                body: `🎥 𝗛𝗲𝗿𝗲’𝘀 𝘆𝗼𝘂𝗿 𝗿𝗮𝗻𝗱𝗼𝗺 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼!\n\n👤 Author: ${shoti.author}\n📜 Title: ${shoti.title}\n⏱️ Duration: ${shoti.duration}s\n🌎 Region: ${shoti.region}`,
                 attachment: fs.createReadStream(filePath)
             }, event.threadID, () => {
                 fs.unlinkSync(filePath); // Cleanup
             }, event.messageID);
         });
 
-        writer.on('error', () => {
+        writer.on('error', (err) => {
+            console.error('Writer error:', err);
             api.sendMessage('🚫 𝗘𝗿𝗿𝗼𝗿 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗶𝗻𝗴 𝘁𝗵𝗲 𝘃𝗶𝗱𝗲𝗼. 𝗣𝗹𝗲𝗮𝘀𝗲 𝘁𝗿𝘆 𝗮𝗴𝗮𝗶𝗻.', event.threadID, event.messageID);
         });
 
