@@ -7,8 +7,8 @@ module.exports.config = {
   version: "1.0.0",
   role: 0,
   hasPrefix: true,
-  aliases: ["botuptime", "upimg"],
-  description: "Get bot uptime image from Kaiz API.",
+  aliases: ["botuptime", "upvid"],
+  description: "Get bot uptime video from Kaiz API.",
   usage: "uptime",
   credits: "Kaizenji, VernesG",
   cooldown: 10,
@@ -34,16 +34,17 @@ module.exports.run = async function ({ api, event, args }) {
     // Call Kaiz API
     const resp = await axios.get(apiUrl);
     const data = resp.data;
-    if (!data || !data.image) {
-      return api.sendMessage(`❌ Could not get uptime image for ${botname}`, threadID, messageID);
+    // Check for video field (not image)
+    if (!data || !data.video) {
+      return api.sendMessage(`❌ Could not get uptime video for ${botname}`, threadID, messageID);
     }
 
-    // Download image file
-    const imgResp = await axios.get(data.image, { responseType: "stream" });
-    const fileName = `${messageID}-uptime.png`;
+    // Download video file
+    const videoResp = await axios.get(data.video, { responseType: "stream" });
+    const fileName = `${messageID}-uptime.mp4`;
     const filePath = path.join(__dirname, fileName);
     const writer = fs.createWriteStream(filePath);
-    imgResp.data.pipe(writer);
+    videoResp.data.pipe(writer);
 
     writer.on("finish", async () => {
       await api.sendMessage(
@@ -59,11 +60,11 @@ module.exports.run = async function ({ api, event, args }) {
 
     writer.on("error", (err) => {
       console.error("File write error:", err);
-      api.sendMessage("❌ Error downloading uptime image.", threadID, messageID);
+      api.sendMessage("❌ Error downloading uptime video.", threadID, messageID);
     });
 
   } catch (err) {
     console.error("Uptime API error:", err);
-    return api.sendMessage("❌ Failed to get uptime image. Please try again later.", threadID, messageID);
+    return api.sendMessage("❌ Failed to get uptime video. Please try again later.", threadID, messageID);
   }
 };
