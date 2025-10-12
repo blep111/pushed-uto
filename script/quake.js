@@ -1,14 +1,13 @@
 const axios = require("axios");
 
 const activeSessions = new Map(); // Use threadID as key for group support
-const lastEarthquakeCache = new Map();
+let lastEarthquakeId = null;
+let monitorStarted = false;
 
-let monitorStarted = false; // Prevent multiple intervals
-
+// Helper functions
 function getPHTime() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
 }
-
 function getTimeAgo(date) {
   const now = getPHTime();
   const diff = now - new Date(date);
@@ -25,40 +24,39 @@ function getTimeAgo(date) {
 
 async function fetchEarthquakeData() {
   try {
+    // CHANGE THIS URL to your earthquake API
     const res = await axios.get("https://hutchingd-earthquake-info-philvocs-api-cc.hf.space/info");
     if (res.data && res.data.details) {
-      return res.data;
+      return res.data.details;
     }
     return null;
-  } catch {
+  } catch (error) {
+    console.error("Quake API fetch error:", error);
     return null;
   }
 }
 
 async function checkForUpdates(api) {
-  const data = await fetchEarthquakeData();
-  if (!data || !data.details) return;
+  const quake = await fetchEarthquakeData();
+  if (!quake) return;
 
-  const quake = data.details;
-  // Use informationNumber as unique event id (if available), else fallback to timestamp
+  // Use informationNumber or timestamp as unique event id
   const uniqueQuakeId = quake.informationNumber || quake.timestamp;
   if (!uniqueQuakeId) return;
 
-  for (const [threadID, session] of activeSessions.entries()) {
-    const lastSent = lastEarthquakeCache.get(threadID);
-    if (lastSent === uniqueQuakeId) continue; // already notified, skip
+  // Only send if new quake
+  if (lastEarthquakeId !== uniqueQuakeId) {
+    lastEarthquakeId = uniqueQuakeId;
+    for (const [threadID] of activeSessions.entries()) {
+      const dateTime = quake.dateTime || "Unknown Time";
+      const location = quake.location || "Unknown Location";
+      const magnitude = quake.magnitude || "N/A";
+      const origin = quake.origin || "Unknown";
+      const infoNum = quake.informationNumber || "N/A";
+      const sourceUrl = quake.sourceUrl?.replace(/\\/g, "/") || "No link available";
+      const mapImg = quake.mapImageUrl?.replace(/\\/g, "/");
 
-    lastEarthquakeCache.set(threadID, uniqueQuakeId);
-
-    const dateTime = quake.dateTime || "Unknown Time";
-    const location = quake.location || "Unknown Location";
-    const magnitude = quake.magnitude || "N/A";
-    const origin = quake.origin || "Unknown";
-    const infoNum = quake.informationNumber || "N/A";
-    const sourceUrl = quake.sourceUrl?.replace(/\\/g, "/") || "No link available";
-    const mapImg = quake.mapImageUrl?.replace(/\\/g, "/");
-
-    const msg = `
+      const msg = `
 🌋 𝗣𝗛𝗜𝗩𝗢𝗟𝗖𝗦 𝗘𝗮𝗿𝘁𝗵𝗾𝘂𝗮𝗸𝗲 𝗔𝗹𝗲𝗿𝘁
 ━━━━━━━━━━━━━━━
 📅 𝗗𝗮𝘁𝗲 & 𝗧𝗶𝗺𝗲: ${dateTime}
@@ -66,16 +64,17 @@ async function checkForUpdates(api) {
 📏 𝗠𝗮𝗴𝗻𝗶𝘁𝘂𝗱𝗲: ${magnitude}
 🌐 𝗢𝗿𝗶𝗴𝗶𝗻: ${origin}
 🆔 𝗜𝗻𝗳𝗼 𝗡𝗼.: ${infoNum}
-
 🔗 𝗦𝗼𝘂𝗿𝗰𝗲: ${sourceUrl}
 🕓 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱: ${getTimeAgo(quake.timestamp)} (PH Time)
 ━━━━━━━━━━━━━━━
 `;
 
-    if (mapImg && global.utils?.getStreamFromURL) {
-      await api.sendMessage({ body: msg, attachment: await global.utils.getStreamFromURL(mapImg) }, threadID);
-    } else {
-      await api.sendMessage(msg, threadID);
+      // If map image exists, send as attachment
+      if (mapImg && global.utils?.getStreamFromURL) {
+        await api.sendMessage({ body: msg, attachment: await global.utils.getStreamFromURL(mapImg) }, threadID);
+      } else {
+        await api.sendMessage(msg, threadID);
+      }
     }
   }
 }
@@ -112,7 +111,6 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("⚠️ You don't have an active earthquake session.", threadID, messageID);
     }
     activeSessions.delete(threadID);
-    lastEarthquakeCache.delete(threadID);
     return api.sendMessage("🛑 Earthquake monitoring stopped.", threadID, messageID);
   }
 
@@ -124,9 +122,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("📡 You're already tracking earthquakes. Use 'earthquake off' to stop.", threadID, messageID);
   }
 
-  activeSessions.set(threadID, { threadID });
+  activeSessions.set(threadID, {});
   api.sendMessage("✅ Earthquake monitoring activated! You'll be notified automatically when new quakes are detected.", threadID, messageID);
 
-  // start background checker
   startEarthquakeMonitor(api);
 };
