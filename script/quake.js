@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const activeSessions = new Map(); // Use threadID as key for group support
+const activeSessions = new Map(); // threadID => timestamp of last sent event
 let lastEarthquakeId = null;
 let monitorStarted = false;
 
@@ -24,7 +24,6 @@ function getTimeAgo(date) {
 
 async function fetchEarthquakeData() {
   try {
-    // CHANGE THIS URL to your earthquake API
     const res = await axios.get("https://hutchingd-earthquake-info-philvocs-api-cc.hf.space/info");
     if (res.data && res.data.details) {
       return res.data.details;
@@ -69,18 +68,17 @@ async function checkForUpdates(api) {
 ━━━━━━━━━━━━━━━
 `;
 
-      // If map image exists, send as attachment
       if (mapImg && global.utils?.getStreamFromURL) {
         await api.sendMessage({ body: msg, attachment: await global.utils.getStreamFromURL(mapImg) }, threadID);
       } else {
         await api.sendMessage(msg, threadID);
       }
+      activeSessions.set(threadID, uniqueQuakeId); // update last sent event per thread
     }
   }
 }
 
-// Continuous monitoring
-async function startEarthquakeMonitor(api) {
+function startEarthquakeMonitor(api) {
   if (monitorStarted) return;
   monitorStarted = true;
   setInterval(() => {
@@ -103,7 +101,6 @@ module.exports.config = {
 module.exports.run = async function ({ api, event, args }) {
   const threadID = event.threadID;
   const messageID = event.messageID;
-
   const subcmd = args[0]?.toLowerCase();
 
   if (subcmd === "off") {
@@ -122,7 +119,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("📡 You're already tracking earthquakes. Use 'earthquake off' to stop.", threadID, messageID);
   }
 
-  activeSessions.set(threadID, {});
+  activeSessions.set(threadID, null); // subscribe this thread
   api.sendMessage("✅ Earthquake monitoring activated! You'll be notified automatically when new quakes are detected.", threadID, messageID);
 
   startEarthquakeMonitor(api);
