@@ -4,7 +4,7 @@ const axios = require('axios');
 const activeSimThreads = new Set();
 
 module.exports.config = {
-  name: "sim",
+  name: "simv3",
   version: "3.0.0",
   permission: 0,
   credits: "Nax",
