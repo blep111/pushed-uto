@@ -3,14 +3,14 @@ const fs = require("fs-extra");
 const path = require("path");
 
 module.exports.config = {
-  name: "ss",
+  name: "screenshot",
   version: "1.0.0",
   role: 0,
   hasPrefix: true,
-  aliases: [],
-  description: "Take a screenshot of a URL via Urangkapolka API",
-  usage: "screenshot <url>",
-  credits: "You",
+  aliases: ["ss", "webshot"],
+  description: "Get a screenshot of a website using XVI Rest API.",
+  usage: "screenshot <website-url>",
+  credits: "Nax",
   cooldown: 5,
 };
 
@@ -18,42 +18,37 @@ module.exports.run = async function ({ api, event, args }) {
   const threadID = event.threadID;
   const messageID = event.messageID;
 
-  if (args.length === 0) {
-    return api.sendMessage("📌 Usage: screenshot <url>", threadID, messageID);
+  if (!args.length) {
+    return api.sendMessage("📌 Usage: screenshot <website-url>", threadID, messageID);
   }
 
-  const targetUrl = args[0].trim();
+  const targetUrl = args.join(" ").trim();
   if (!/^https?:\/\//i.test(targetUrl)) {
     return api.sendMessage("⚠️ Please provide a valid URL starting with http:// or https://", threadID, messageID);
   }
 
-  const encoded = encodeURIComponent(targetUrl);
-  const apiUrl = `https://urangkapolka.vercel.app/api/screenshot?url=${encoded}`;
+  const apiUrl = `https://xvi-rest-api.vercel.app/api/screenshot?url=${encodeURIComponent(targetUrl)}`;
 
   try {
-    // Step 1: Get screenshot info from API
+    // Call the API
     const resp = await axios.get(apiUrl);
-    // The API response: { status: "success", image: "https://..." }
-    if (!resp.data || resp.data.status !== "success" || !resp.data.image) {
-      throw new Error("No image link returned from API");
+    const data = resp.data;
+    if (!data || !data.result || !data.result.screenshot) {
+      return api.sendMessage("❌ Could not get screenshot for this website.", threadID, messageID);
     }
-    const imageUrl = resp.data.image;
 
-    // Step 2: Download the image from the returned URL
-    const imgResp = await axios.get(imageUrl, { responseType: "stream" });
-
-    // Step 3: Save to temp file, send then clean up
-    const fileName = `${messageID}.png`;
+    // Download the screenshot image
+    const imgResp = await axios.get(data.result.screenshot, { responseType: "stream" });
+    const fileName = `${messageID}-screenshot.png`;
     const filePath = path.join(__dirname, fileName);
-
     const writer = fs.createWriteStream(filePath);
     imgResp.data.pipe(writer);
 
-    writer.on('close', async () => {
+    writer.on("finish", async () => {
       await api.sendMessage(
         {
           body: `📷 Screenshot of: ${targetUrl}`,
-          attachment: fs.createReadStream(filePath)
+          attachment: fs.createReadStream(filePath),
         },
         threadID,
         () => fs.unlink(filePath, () => {}),
@@ -61,9 +56,9 @@ module.exports.run = async function ({ api, event, args }) {
       );
     });
 
-    writer.on('error', (err) => {
+    writer.on("error", (err) => {
       console.error("File write error:", err);
-      api.sendMessage("❌ Error saving screenshot file.", threadID, messageID);
+      api.sendMessage("❌ Error downloading screenshot file.", threadID, messageID);
     });
 
   } catch (err) {
