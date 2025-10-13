@@ -1,7 +1,25 @@
 const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
+const threadsFile = path.join(__dirname, "sim_threads.json");
 
-// Store which threads have SimSimi auto-reply enabled
-const activeSimThreads = new Set();
+// Load active threads from file
+function loadActiveThreads() {
+  try {
+    const data = fs.readFileSync(threadsFile, "utf8");
+    const arr = JSON.parse(data);
+    return new Set(arr);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+// Save active threads to file
+function saveActiveThreads(set) {
+  fs.writeFileSync(threadsFile, JSON.stringify(Array.from(set)), "utf8");
+}
+
+let activeSimThreads = loadActiveThreads();
 
 module.exports.config = {
   name: "simv3",
@@ -10,7 +28,7 @@ module.exports.config = {
   credits: "Nax",
   prefix: false,
   premium: false,
-  description: "Auto-reply with SimSimi AI, stays on until turned off",
+  description: "Auto-reply with SimSimi AI, stays on until turned off (persistent)",
   category: "without prefix",
   usages: "sim on | sim off",
   cooldowns: 3,
@@ -30,13 +48,8 @@ module.exports.languages = {
   }
 };
 
-/**
- * Auto-reply to all messages in threads where Sim is "on".
- * Replies to any message, including replies to bot messages, with a simple SimSimi response.
- */
 module.exports.handleEvent = async function({ api, event }) {
   const { threadID, body, senderID } = event;
-  // Only auto-reply if enabled and message isn't from the bot itself
   if (!activeSimThreads.has(threadID)) return;
   if (!body || senderID === api.getCurrentUserID()) return;
 
@@ -51,10 +64,6 @@ module.exports.handleEvent = async function({ api, event }) {
   }
 };
 
-/**
- * Command: sim on | sim off
- * Turn auto-reply on/off for SimSimi in the thread.
- */
 module.exports.run = async function({ api, event, args, getText }) {
   const { threadID, messageID } = event;
   const subcmd = (args[0] || "").toLowerCase();
@@ -64,6 +73,7 @@ module.exports.run = async function({ api, event, args, getText }) {
       return api.sendMessage(getText("alreadyOn"), threadID, messageID);
     }
     activeSimThreads.add(threadID);
+    saveActiveThreads(activeSimThreads);
     return api.sendMessage(getText("on"), threadID, messageID);
   }
 
@@ -72,6 +82,7 @@ module.exports.run = async function({ api, event, args, getText }) {
       return api.sendMessage(getText("alreadyOff"), threadID, messageID);
     }
     activeSimThreads.delete(threadID);
+    saveActiveThreads(activeSimThreads);
     return api.sendMessage(getText("off"), threadID, messageID);
   }
 
