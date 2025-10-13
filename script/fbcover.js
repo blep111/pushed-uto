@@ -6,7 +6,7 @@ module.exports.config = {
   name: "fbcover",
   version: "1.0.0",
   role: 0,
-  credits: "Vern",
+  credits: "Nax",
   description: "Generates a Facebook cover using provided details.",
   hasPrefix: true,
   aliases: ["fbcover"],
