@@ -1,6 +1,5 @@
 const axios = require("axios");
 
-// Bold text conversion utility
 function convertToBold(text) {
   const boldMap = {
     'a': '𝗮','b': '𝗯','c': '𝗰','d': '𝗱','e': '𝗲','f': '𝗳','g': '𝗴','h': '𝗵','i': '𝗶','j': '𝗷',
