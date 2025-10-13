@@ -1,16 +1,16 @@
 const axios = require('axios');
 
-// Store which threads have SimSimi auto-reply enabled
 const activeSimThreads = new Set();
+const simBotUserID = null; // Will be set after first reply from bot
 
 module.exports.config = {
   name: "simv3",
-  version: "2.0.0",
+  version: "3.0.0",
   permission: 0,
-  credits: "converted by vrax, upgraded by Nax",
+  credits: "converted by vrax, upgraded by Copilot",
   prefix: false,
   premium: false,
-  description: "Auto-reply with SimSimi AI",
+  description: "Auto-reply with SimSimi AI, including thread replies",
   category: "without prefix",
   usages: "sim on | sim off",
   cooldowns: 3,
@@ -31,17 +31,26 @@ module.exports.languages = {
 };
 
 module.exports.handleEvent = async function({ api, event }) {
-  const { threadID, body, senderID, isGroup } = event;
+  const { threadID, body, senderID, isGroup, messageReply } = event;
+
   // Only auto-reply if enabled and message isn't from the bot itself
   if (!activeSimThreads.has(threadID)) return;
   if (!body || senderID === api.getCurrentUserID()) return;
+
+  // If message is a reply to the bot's previous SimSimi reply, continue the thread
+  let replyContext = "";
+  if (messageReply && messageReply.senderID === api.getCurrentUserID()) {
+    replyContext = `\n(User replied to SimSimi: "${body}")`;
+  }
 
   try {
     const apiKey = "2a5a2264d2ee4f0b847cb8bd809ed34bc3309be7";
     const apiUrl = `https://simsimi.ooguy.com/sim?query=${encodeURIComponent(body)}&apikey=${apiKey}`;
     const { data } = await axios.get(apiUrl);
+
     if (!data || !data.respond) return;
-    api.sendMessage(data.respond, threadID);
+
+    api.sendMessage(`${data.respond}${replyContext}`, threadID, event.messageID); // reply in thread if possible
   } catch (error) {
     console.error("sim handleEvent error:", error.message);
   }
