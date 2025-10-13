@@ -10,7 +10,7 @@ module.exports.config = {
   aliases: ["cdpimg", "cdpphoto"],
   description: "Get images from the CDP API.",
   usage: "cdp",
-  credits: "VernesG",
+  credits: "Nax",
   cooldown: 10,
 };
 
@@ -45,8 +45,10 @@ module.exports.run = async function ({ api, event, args }) {
 
     // Wait for both to finish
     let finished = 0;
+    let errorOccurred = false;
     function cleanupAndSend() {
-      if (++finished === 2) {
+      finished++;
+      if (finished === 2 && !errorOccurred) {
         api.sendMessage(
           {
             body: `🖼️ CDP Images\nCreator: ${data.creator}`,
@@ -65,16 +67,23 @@ module.exports.run = async function ({ api, event, args }) {
       }
     }
 
-    writerOne.on("finish", cleanupAndSend);
-    writerTwo.on("finish", cleanupAndSend);
+    function handleError(errMsg) {
+      errorOccurred = true;
+      fs.unlink(filePathOne, () => {});
+      fs.unlink(filePathTwo, () => {});
+      api.sendMessage(errMsg, threadID, messageID);
+    }
+
+    writerOne.on("close", cleanupAndSend);
+    writerTwo.on("close", cleanupAndSend);
 
     writerOne.on("error", (err) => {
       console.error("File write error (one):", err);
-      api.sendMessage("❌ Error downloading first image.", threadID, messageID);
+      handleError("❌ Error downloading first image.");
     });
     writerTwo.on("error", (err) => {
       console.error("File write error (two):", err);
-      api.sendMessage("❌ Error downloading second image.", threadID, messageID);
+      handleError("❌ Error downloading second image.");
     });
 
   } catch (err) {
