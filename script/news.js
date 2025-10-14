@@ -4,11 +4,11 @@ const path = require('path');
 
 module.exports.config = {
   name: 'breakingnews',
-  version: '1.0.0',
+  version: '1.1.0',
   role: 0,
   aliases: ['bnews', 'news'],
-  description: 'Generate a Breaking News-style image for the mentioned user using Betadash API',
-  usage: '@mention | <channel> | <title> | <headline>',
+  description: 'Generate a Breaking News-style image for any user ID with custom text using Betadash API',
+  usage: '@mention | <userID> | <channel> | <title> | <headline>',
   credits: 'Nax',
   cooldown: 3,
 };
@@ -16,54 +16,51 @@ module.exports.config = {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, mentions, senderID } = event;
 
-  // Mentioned user or fallback to sender
-  const targetUID = Object.keys(mentions)[0] || senderID;
+  // Determine target user:
+  // 1. Mentioned user
+  // 2. User ID provided as first argument
+  // 3. Fallback to sender
+  const targetUID = Object.keys(mentions || {})[0] || args[0] || senderID;
 
   // Extract arguments: channel, title, headline
-  const [channel = 'DYZZ', title = 'Breaking Update', headline = 'No headline provided'] = args;
+  // If args[0] is a userID, slice it out
+  const argStartIndex = Object.keys(mentions || {})[0] || (!isNaN(args[0]) ? 1 : 0);
+  const [channel = 'DYZZ', title = 'Breaking Update', headline = 'No headline provided'] = args.slice(argStartIndex);
 
   // Construct API URL
   const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/breaking-news?userid=${targetUID}&channel=${encodeURIComponent(channel)}&title=${encodeURIComponent(title)}&headline=${encodeURIComponent(headline)}`;
 
   // Send initial loading message
-  api.sendMessage(
+  const loadingMsg = await api.sendMessage(
     `📰 Generating Breaking News poster for user ID: ${targetUID}...\n🕓 Please wait...`,
-    threadID,
-    async (err, info) => {
-      if (err) return;
-
-      try {
-        // Fetch image from API (binary data)
-        const response = await axios.get(apiUrl, {
-          responseType: 'arraybuffer',
-          timeout: 60000,
-        });
-
-        // Save image temporarily
-        const filePath = path.join(__dirname, `breakingnews_${targetUID}.png`);
-        await fs.writeFile(filePath, Buffer.from(response.data), 'binary');
-
-        // Send the generated image
-        await api.sendMessage(
-          {
-            body: `✅ Breaking News poster generated successfully!\n📺 Channel: ${channel.toUpperCase()}\n🗞️ Title: ${title}\n📰 Headline: ${headline}`,
-            attachment: fs.createReadStream(filePath),
-          },
-          threadID,
-          async () => {
-            // Cleanup
-            await fs.remove(filePath).catch(() => {});
-            api.deleteMessage(info.messageID);
-          },
-          messageID
-        );
-      } catch (error) {
-        console.error('Error generating Breaking News image:', error);
-        api.editMessage(
-          '❌ Failed to generate Breaking News image. Please try again later.',
-          info.messageID
-        );
-      }
-    }
+    threadID
   );
+
+  try {
+    // Fetch image from API (binary data)
+    const response = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 60000 });
+
+    // Save image temporarily
+    const filePath = path.join(__dirname, `breakingnews_${targetUID}.png`);
+    await fs.writeFile(filePath, response.data);
+
+    // Send the generated image
+    await api.sendMessage(
+      {
+        body: `✅ Breaking News poster generated successfully!\n📺 Channel: ${channel.toUpperCase()}\n🗞️ Title: ${title}\n📰 Headline: ${headline}`,
+        attachment: fs.createReadStream(filePath),
+      },
+      threadID
+    );
+
+    // Cleanup
+    await fs.remove(filePath).catch(() => {});
+    await api.deleteMessage(loadingMsg.messageID);
+  } catch (error) {
+    console.error('Error generating Breaking News image:', error);
+    await api.editMessage(
+      '❌ Failed to generate Breaking News image. Please try again later.',
+      loadingMsg.messageID
+    );
+  }
 };
