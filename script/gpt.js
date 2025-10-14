@@ -20,10 +20,11 @@ module.exports.config = {
   role: 0,
   hasPrefix: true,
   aliases: ["ariaai", "aria1"],
-  description: "Aria AI via new API.",
-  usage: "aria [prompt]",
-  credits: "LorexAi, VernesG",
+  description: "Aria AI via API.",
+  usage: "aria [your prompt]",
+  credits: "Nax",
   cooldown: 0,
+  category: "ai"
 };
 
 module.exports.run = async function ({ api, event, args }) {
@@ -33,11 +34,11 @@ module.exports.run = async function ({ api, event, args }) {
   const uid = event.senderID;
 
   if (!prompt)
-    return api.sendMessage("❗Pakilagay ng iyong sagot.", threadID, messageID);
+    return api.sendMessage("❗Please provide your question or prompt.", threadID, messageID);
 
   // Send loading message and get the info for editing later
   const loadingMsg = await new Promise(resolve =>
-    api.sendMessage("🚀Generating Aria Ai..", threadID, (err, info) => resolve(info))
+    api.sendMessage("🚀 Generating Aria AI response...", threadID, (err, info) => resolve(info))
   );
 
   try {
