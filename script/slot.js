@@ -1,37 +1,28 @@
-// User balances, in-memory only
+// In-memory user balances (reset on bot restart)
 const balances = {};
 
 module.exports.config = {
   name: "slot",
   version: "1.0.2",
-  permission: 0,
-  credits: "Nax",
-  premium: false,
-  prefix: false,
-  description: "slot game",
-  category: "without prefix",
-  usages: "slot (amount)",
-  cooldowns: 5,
+  role: 0,
+  hasPrefix: true,
+  aliases: ["slots"],
+  description: "Slot machine game. Bet your cash and try your luck!",
+  usage: "slot <amount>",
+  credits: "ryuko, VernesG",
+  cooldown: 5,
 };
 
 module.exports.languages = {
-  "bangla": {
-    "missingInput": "the bet money must not be blank or a negative number.",
-    "moneyBetNotEnough": "the money you betted is bigger than your balance.",
-    "limitBet": "your bet is too low, the minimum is 50 pesos.",
-    "returnWin": "%1 | %2 | %3 \nyou won %4$",
-    "returnLose": "%1 | %2 | %3\nyou loss %4$"
-  },
   "english": {
-    "missingInput": "the bet money must not be blank or a negative number.",
-    "moneyBetNotEnough": "the money you betted is bigger than your balance.",
-    "limitBet": "your bet is too low, the minimum is 50 pesos.",
-    "returnWin": "%1 | %2 | %3 \nyou won %4$",
-    "returnLose": "%1 | %2 | %3\nyou loss %4$"
+    "missingInput": "The bet money must not be blank or a negative number.",
+    "moneyBetNotEnough": "The money you bet is bigger than your balance.",
+    "limitBet": "Your bet is too low, the minimum is 50.",
+    "returnWin": "%1 | %2 | %3 \nYou won %4$",
+    "returnLose": "%1 | %2 | %3\nYou lost %4$"
   }
-}
+};
 
-// Helper to get/set user balance
 function getBalance(userID) {
   if (!(userID in balances)) balances[userID] = 2000; // Default starting cash
   return balances[userID];
