@@ -4,57 +4,68 @@ const path = require('path');
 
 module.exports.config = {
   name: 'bb',
-  version: '1.0.0',
+  version: '2.0.0',
   role: 0,
   aliases: ['cityboard', 'board'],
-  description: 'Generate a city billboard photo of mentioned user using Betadash API',
-  usage: '@mention (optional)',
-  credits: 'Nax',
+  description: 'Generate a City Billboard image for any user ID or mentioned user using Betadash API',
+  usage: '@mention | <uid> | (no args for self)',
+  credits: 'Nax + Vern',
   cooldown: 3,
 };
 
-module.exports.run = async function ({ api, event }) {
+module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, mentions, senderID } = event;
 
-  // Get mentioned user ID or use sender’s own ID
-  const mentionUID = Object.keys(mentions)[0] || senderID;
+  // Determine which user ID to use
+  let targetUID;
 
-  // API endpoint
-  const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/city-billboard?userid=${mentionUID}`;
+  if (Object.keys(mentions).length > 0) {
+    targetUID = Object.keys(mentions)[0];
+  } else if (args.length > 0 && /^\d+$/.test(args[0])) {
+    targetUID = args[0]; // manually entered UID
+  } else {
+    targetUID = senderID; // default to sender
+  }
 
-  // Send initial loading message
+  // Betadash API endpoint
+  const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/city-billboard?userid=${targetUID}`;
+
+  // Send loading message
   api.sendMessage(
-    `🖼️ Generating City Billboard for user ID: ${mentionUID}...\nPlease wait...`,
+    `🖼️ Generating City Billboard for user ID: ${targetUID}\n⏳ Please wait...`,
     threadID,
     async (err, info) => {
       if (err) return;
 
       try {
-        // Fetch image from API (binary response)
-        const response = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 45000 });
+        // Fetch image data from API
+        const response = await axios.get(apiUrl, {
+          responseType: 'arraybuffer',
+          timeout: 60000,
+        });
 
         // Save image temporarily
-        const filePath = path.join(__dirname, `billboard_${mentionUID}.png`);
-        await fs.writeFile(filePath, Buffer.from(response.data), 'binary');
+        const filePath = path.join(__dirname, `cache_billboard_${targetUID}.png`);
+        await fs.writeFile(filePath, Buffer.from(response.data));
 
         // Send generated image
         await api.sendMessage(
           {
-            body: `✅ City Billboard generated successfully!`,
+            body: `✅ City Billboard generated successfully for UID: ${targetUID}`,
             attachment: fs.createReadStream(filePath),
           },
           threadID,
           async () => {
-            // Cleanup temporary file
+            // Clean up temporary file
             await fs.remove(filePath).catch(() => {});
-            // Delete loading message
             api.deleteMessage(info.messageID);
-          }
+          },
+          messageID
         );
       } catch (error) {
-        console.error('Error generating billboard:', error);
+        console.error('❌ Error generating billboard:', error);
         api.editMessage(
-          '❌ Failed to generate the City Billboard. Please try again later.',
+          '❌ Failed to generate City Billboard. The API might be busy or invalid UID provided.',
           info.messageID
         );
       }
