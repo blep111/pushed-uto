@@ -17,7 +17,7 @@ module.exports.run = async function ({ api, event }) {
   const { threadID, messageID } = event;
 
   try {
-    const res = await axios.get("https://kaiz-apis.gleeze.com/api/bible?apikey=0ff49fce-1537-4798-9d90-69db487be671");
+    const res = await axios.get("https://kaiz-apis.gleeze.com/api/bible?apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5");
 
     const verseData = res.data?.verse?.[0];
     const reference = res.data?.reference || "Unknown Reference";
