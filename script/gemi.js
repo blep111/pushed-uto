@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports.config = {
   name: 'gemini',
-  version: '1.0.1',
+  version: '1.0.2',
   role: 0,
   aliases: ['askgemini'],
   description: 'Ask Gemini AI a question or analyze an image',
@@ -19,7 +19,8 @@ module.exports.run = async function ({ api, event, args }) {
   let imageUrl = null;
 
   if (attachments && attachments.length > 0) imageUrl = attachments[0].url;
-  else if (messageReply && messageReply.attachments && messageReply.attachments.length > 0) imageUrl = messageReply.attachments[0].url;
+  else if (messageReply && messageReply.attachments && messageReply.attachments.length > 0)
+    imageUrl = messageReply.attachments[0].url;
 
   if (!askText && !imageUrl) {
     return api.sendMessage(
@@ -29,34 +30,42 @@ module.exports.run = async function ({ api, event, args }) {
     );
   }
 
-  // Send loading message
   const loadingMsg = await api.sendMessage('🔎 Processing with Gemini AI, please wait...', threadID);
 
   try {
-    // Construct API URL
-    const apiUrl = `https://gemini-web-api.onrender.com/gemini?ask=${encodeURIComponent(askText || '')}&uid=${senderID}&image_url=${encodeURIComponent(imageUrl || '')}`;
+    const apiUrl = `https://gemini-web-api.onrender.com/gemini?ask=${encodeURIComponent(
+      askText || ''
+    )}&uid=${senderID}&image_url=${encodeURIComponent(imageUrl || '')}`;
 
-    // Fetch response from API
     const response = await axios.get(apiUrl, { timeout: 60000 });
 
-    // Extract readable response
+    // Extract the readable response
     let resultText = '';
     if (response.data) {
-      if (typeof response.data === 'string') resultText = response.data;
-      else if (response.data.result) resultText = response.data.result;
-      else if (response.data.text) resultText = response.data.text;
-      else resultText = JSON.stringify(response.data, null, 2);
+      // Prefer .response or .result or .text fields
+      resultText =
+        response.data.response ||
+        response.data.result ||
+        response.data.text ||
+        (typeof response.data === 'string' ? response.data : null);
+
+      if (!resultText) {
+        // Fallback: flatten object to readable string
+        resultText = Object.entries(response.data)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n');
+      }
     } else {
-      resultText = 'No readable response returned from Gemini.';
+      resultText = 'No response returned from Gemini.';
     }
 
-    // Send readable result
-    await api.sendMessage(`📄 Gemini Response:\n${resultText}`, threadID, messageID);
-
-    // Delete loading message
+    await api.sendMessage(`📄 Gemini says:\n${resultText}`, threadID, messageID);
     await api.deleteMessage(loadingMsg.messageID);
   } catch (error) {
     console.error('Error with Gemini API:', error);
-    await api.editMessage('❌ Failed to process your request. Please try again later.', loadingMsg.messageID);
+    await api.editMessage(
+      '❌ Failed to process your request. Please try again later.',
+      loadingMsg.messageID
+    );
   }
 };
