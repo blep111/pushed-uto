@@ -4,7 +4,7 @@ const path = require('path');
 
 module.exports.config = {
   name: 'missing',
-  version: '1.0.0',
+  version: '1.1.0',
   role: 0,
   aliases: ['missingperson', 'missingpic'],
   description: 'Generate a Missing Person-style image using Betadash API',
@@ -14,13 +14,23 @@ module.exports.config = {
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, mentions, senderID } = event;
+  const { threadID, messageID, mentions } = event;
 
   // Determine target user
-  const targetUID = Object.keys(mentions || {})[0] || args[0] || senderID;
+  const targetUID = Object.keys(mentions || {})[0] || args[0];
 
-  // Extract name and number from arguments
-  const [name = 'Unknown', number = 'No number provided'] = args.slice(1);
+  // Determine name and number
+  const name = args[1];
+  const number = args[2];
+
+  // Check if all required inputs are provided
+  if (!targetUID || !name || !number) {
+    return api.sendMessage(
+      `❌ Missing required input!\nPlease provide the following:\n• User mention or ID\n• Name\n• Number\n\nExample: @user John 09171234567`,
+      threadID,
+      messageID
+    );
+  }
 
   // Construct API URL
   const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/missing?userid=${targetUID}&name=${encodeURIComponent(name)}&number=${encodeURIComponent(number)}`;
