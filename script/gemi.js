@@ -1,64 +1,74 @@
-const axios = require("axios");
+const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
+const FormData = require('form-data');
 
 module.exports.config = {
-  name: "gemini",
-  version: "1.0.2",
+  name: 'gemini',
+  version: '1.2.0',
   role: 0,
-  credits: "Vern",
-  description: "Ask the Gemini AI a question and get a thoughtful answer.",
-  commandCategory: "ai",
-  usages: "gemini [question]",
-  cooldowns: 5,
-  hasPrefix: true
+  aliases: ['geminiapi', 'gpt'],
+  description: 'Gemini AI: answer questions via text or analyze sent images',
+  usage: 'Send text or photo with this command',
+  credits: 'Nax',
+  cooldown: 3,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID } = event;
-  const prompt = args.join(" ");
+  const { threadID, messageID, messageReply, attachments } = event;
 
-  if (!prompt) {
-    return api.sendMessage(
-      "❓ Please provide a question to ask Gemini.\n\nUsage: gemini What is love?",
-      threadID,
-      messageID
-    );
-  }
-
+  let loadingMsg;
   try {
-    // ✅ Try POST (most Gemini APIs require POST)
-    const res = await axios.post("https://aryanapi.up.railway.app/api/gemini", { prompt });
+    // Check if the user sent/replied with an image
+    let attachmentURL = null;
+    if (attachments && attachments.length > 0) attachmentURL = attachments[0].url;
+    else if (messageReply && messageReply.attachments && messageReply.attachments.length > 0) attachmentURL = messageReply.attachments[0].url;
 
-    // ✅ Adjust based on likely response format
-    const answer =
-      res.data?.response ||
-      res.data?.result ||
-      res.data?.answer ||
-      res.data?.text ||
-      res.data?.message;
-
-    if (!answer) {
+    if (!attachmentURL && args.length === 0) {
       return api.sendMessage(
-        "⚠️ No response received from Gemini. Try again later.",
+        '❌ Please send text or an image for Gemini to process.',
         threadID,
         messageID
       );
     }
 
-    const maxLen = 1200;
-    const output = answer.length > maxLen ? answer.slice(0, maxLen) + "..." : answer;
+    // Send loading message
+    loadingMsg = await api.sendMessage('🔎 Processing with Gemini AI, please wait...', threadID);
 
-    return api.sendMessage(
-      `🤖 𝗚𝗲𝗺𝗶𝗻𝗶 𝗥𝗲𝘀𝗽𝗼𝗻𝘀𝗲:\n\n${output}`,
-      threadID,
-      messageID
-    );
-  } catch (err) {
-    const errorMsg = err.response?.data?.error || err.message;
-    console.error("[gemini.js] API Error:", errorMsg);
-    return api.sendMessage(
-      `🚫 Failed to reach Gemini API.\nError: ${errorMsg}`,
-      threadID,
-      messageID
-    );
+    let resultText = '';
+
+    if (attachmentURL) {
+      // If user sent image
+      const imageResponse = await axios.get(attachmentURL, { responseType: 'arraybuffer' });
+      const filePath = path.join(__dirname, `gemini_${Date.now()}.jpg`);
+      await fs.writeFile(filePath, imageResponse.data);
+
+      const formData = new FormData();
+      formData.append('file', fs.createReadStream(filePath));
+
+      const apiResponse = await axios.post(
+        'https://gemini-web-api.onrender.com/',
+        formData,
+        { headers: formData.getHeaders(), timeout: 60000 }
+      );
+
+      resultText = apiResponse.data?.result || 'No readable text returned from the image.';
+
+      await fs.remove(filePath).catch(() => {});
+    } else {
+      // If user sent text
+      const text = args.join(' ');
+      const apiResponse = await axios.get(`https://gemini-web-api.onrender.com/?text=${encodeURIComponent(text)}`, { timeout: 60000 });
+      resultText = apiResponse.data?.result || apiResponse.data || 'No readable text returned.';
+    }
+
+    // Send the result
+    await api.sendMessage(`📄 Gemini Response:\n${resultText}`, threadID);
+
+    // Delete loading message
+    await api.deleteMessage(loadingMsg.messageID);
+  } catch (error) {
+    console.error('Error in Gemini AI command:', error);
+    if (loadingMsg) await api.editMessage('❌ Failed to process input. Please try again later.', loadingMsg.messageID);
   }
 };
