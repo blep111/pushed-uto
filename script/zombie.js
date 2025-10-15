@@ -1,49 +1,58 @@
-const axios = require("axios");
-const fs = require("fs-extra");
-const path = require("path");
+const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
 
 module.exports.config = {
-  name: "zombie",
-  version: "1.0.0",
+  name: 'zombie',
+  version: '1.0.0',
   role: 0,
-  credits: "Vern",
-  aliases: [],
-  usages: "< reply to image >",
-  cooldown: 5,
+  aliases: ['zombify', 'zombiestyle'],
+  description: 'Generate a Zombie-style image for any user using Betadash API',
+  usage: '@mention | <userID>',
+  credits: 'Nax',
+  cooldown: 3,
 };
 
-module.exports.run = async ({ api, event }) => {
-  const { threadID, messageID, messageReply } = event;
-  const tempPath = path.join(__dirname, "cache", `zombiev2_${Date.now()}.jpg`);
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, mentions, senderID } = event;
 
-  // Ensure image is replied to
-  if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0) {
-    return api.sendMessage("❌ Please reply to an image to apply the zombie effect.", threadID, messageID);
-  }
+  // Determine target user
+  const targetUID = Object.keys(mentions || {})[0] || args[0] || senderID;
 
-  const attachment = messageReply.attachments[0];
-  if (attachment.type !== "photo") {
-    return api.sendMessage("❌ The replied message must be a photo.", threadID, messageID);
-  }
+  // Construct API URL
+  const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/zombie?userid=${targetUID}`;
 
-  const imageUrl = encodeURIComponent(attachment.url);
-  const apiUrl = `https://xvi-rest-api.vercel.app/api/zombie?imageUrl=${imageUrl}`;
+  // Send initial loading message
+  const loadingMsg = await api.sendMessage(
+    `🧟 Generating Zombie-style image for user ID: ${targetUID}...\nPlease wait...`,
+    threadID
+  );
 
   try {
-    api.sendMessage("🧟 Applying Zombie effect, please wait...", threadID, messageID);
+    // Fetch image from API
+    const response = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 60000 });
 
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
+    // Save image temporarily
+    const filePath = path.join(__dirname, `zombie_${targetUID}.png`);
+    await fs.writeFile(filePath, response.data);
 
-    fs.ensureDirSync(path.dirname(tempPath));
-    fs.writeFileSync(tempPath, Buffer.from(response.data, "binary"));
+    // Send the generated image
+    await api.sendMessage(
+      {
+        body: `✅ Zombie-style image generated successfully!\n👤 User ID: ${targetUID}`,
+        attachment: fs.createReadStream(filePath),
+      },
+      threadID
+    );
 
-    api.sendMessage({
-      body: "✅ Zombie effect applied successfully!",
-      attachment: fs.createReadStream(tempPath)
-    }, threadID, () => fs.unlinkSync(tempPath), messageID);
-
+    // Cleanup
+    await fs.remove(filePath).catch(() => {});
+    await api.deleteMessage(loadingMsg.messageID);
   } catch (error) {
-    console.error("Zombie Effect Error:", error.message);
-    api.sendMessage("❌ An error occurred while applying the effect. Please try again later.", threadID, messageID);
+    console.error('Error generating Zombie-style image:', error);
+    await api.editMessage(
+      '❌ Failed to generate Zombie-style image. Please try again later.',
+      loadingMsg.messageID
+    );
   }
 };
