@@ -1,7 +1,7 @@
 const registration = require('./registration.js').registration;
 
 module.exports.config = {
-  name: 'fight',
+  name: 'fayt',
   version: '1.0.0',
   role: 0,
   aliases: ['battle', 'duel'],
