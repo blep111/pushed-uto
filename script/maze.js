@@ -1,68 +1,59 @@
 const balanceManager = require('./balance.js');
-const readline = require('readline'); // optional if using console, for chat use event args
 
 module.exports.config = {
   name: "maze",
-  version: "1.0.0",
+  version: "1.0.1",
   role: 0,
   aliases: ["mazegame", "guessmaze"],
-  description: "Maze guessing game. Navigate the maze to win money!",
-  usage: "maze",
+  description: "Maze guessing game. Enter your moves and win money!",
+  usage: "maze <sequence of moves: up, down, left, right>",
   credits: "Nax",
   cooldown: 5,
 };
 
-module.exports.run = async function({ api, event }) {
+module.exports.run = async function({ api, event, args }) {
   const { threadID, senderID, senderName } = event;
-  let balance = balanceManager.getBalance(senderID, senderName);
 
-  // Maze setup (simple 3x3 grid)
-  const maze = [
-    ["start", "", ""],
-    ["", "", ""],
-    ["", "", "treasure"]
-  ];
-  let position = { x: 0, y: 0 };
-  const maxSteps = 5; // user has 5 moves to find treasure
+  let balance = balanceManager.getBalance(senderID, senderName);
   const betAmount = 100; // cost to play
 
   if (balance < betAmount) {
-    return api.sendMessage(`❌ You need at least $${betAmount} to play the maze game. Your balance: $${balance}`, threadID);
+    return api.sendMessage(`❌ You need at least $${betAmount} to play. Your balance: $${balance}`, threadID);
   }
 
-  balanceManager.addBalance(senderID, -betAmount, senderName); // subtract bet
+  if (!args || args.length === 0) {
+    return api.sendMessage(`⚠️ Please provide your moves as a sequence, e.g.:\nmaze right down down right`, threadID);
+  }
 
-  let message = `🌀 Maze Game Started!\nYou are at start. Find the treasure in ${maxSteps} moves.\nMove using: up, down, left, right`;
-  await api.sendMessage(message, threadID);
+  // Deduct the bet
+  balanceManager.addBalance(senderID, -betAmount, senderName);
 
-  let steps = 0;
-  let won = false;
+  // Maze setup
+  const mazeSize = 3;
+  const treasure = { x: 2, y: 2 };
+  let position = { x: 0, y: 0 };
 
-  const handleMove = async (move) => {
-    move = move.toLowerCase();
+  const moves = args.map(m => m.toLowerCase());
+  const maxSteps = 5;
+  let stepsTaken = 0;
+
+  for (let move of moves) {
+    if (stepsTaken >= maxSteps) break;
     if (move === "up" && position.y > 0) position.y--;
-    else if (move === "down" && position.y < 2) position.y++;
+    else if (move === "down" && position.y < mazeSize - 1) position.y++;
     else if (move === "left" && position.x > 0) position.x--;
-    else if (move === "right" && position.x < 2) position.x++;
-    else return api.sendMessage("⚠️ Invalid move or hit wall!", threadID);
+    else if (move === "right" && position.x < mazeSize - 1) position.x++;
+    stepsTaken++;
+  }
 
-    steps++;
-    if (maze[position.y][position.x] === "treasure") {
-      won = true;
-      const reward = 300; // winning amount
-      balanceManager.addBalance(senderID, reward, senderName);
-      return api.sendMessage(`🎉 Congratulations! You found the treasure and won $${reward}!\n💰 Your new balance: $${balanceManager.getBalance(senderID)}`, threadID);
-    }
+  let message = "";
+  if (position.x === treasure.x && position.y === treasure.y) {
+    const reward = 300;
+    balanceManager.addBalance(senderID, reward, senderName);
+    message = `🎉 You reached the treasure in ${stepsTaken} moves and won $${reward}!\n💰 Your new balance: $${balanceManager.getBalance(senderID)}`;
+  } else {
+    message = `❌ You did not reach the treasure in ${stepsTaken} moves.\n💰 Your balance: $${balanceManager.getBalance(senderID)}`;
+  }
 
-    if (steps >= maxSteps) {
-      return api.sendMessage(`❌ You did not find the treasure in ${maxSteps} moves. Better luck next time!\n💰 Your balance: $${balanceManager.getBalance(senderID)}`, threadID);
-    }
-
-    // Otherwise, continue game
-    await api.sendMessage(`Step ${steps}/${maxSteps} completed. Your current position: (${position.x},${position.y})`, threadID);
-  };
-
-  // Here we simulate moves through messages; in your bot you need to capture next message
-  // Example: if user replies with "up", call handleMove("up")
-  // You need to hook this with your message event system for interactivity
+  return api.sendMessage(message, threadID);
 };
