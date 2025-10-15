@@ -30,7 +30,7 @@ function setBalance(userID, amount) {
 
 module.exports.config = {
   name: "slot",
-  version: "1.1.0",
+  version: "1.2.0",
   role: 0,
   hasPrefix: true,
   aliases: ["slots"],
@@ -42,11 +42,11 @@ module.exports.config = {
 
 module.exports.languages = {
   "english": {
-    "missingInput": "The bet money must not be blank or a negative number.",
-    "moneyBetNotEnough": "The money you bet is bigger than your balance.",
-    "limitBet": "Your bet is too low, the minimum is 50.",
-    "returnWin": "%1 | %2 | %3 \nYou won %4$",
-    "returnLose": "%1 | %2 | %3\nYou lost %4$"
+    "missingInput": "❌ You didn't specify a bet amount.\nYour current balance: %balance$\nPlease type: slot <amount>",
+    "moneyBetNotEnough": "❌ You don't have enough balance for that bet.\nYour balance: %balance$",
+    "limitBet": "❌ Your bet is too low, minimum is 50$.\nYour balance: %balance$",
+    "returnWin": "%1 | %2 | %3 \n🎉 You won %4$",
+    "returnLose": "%1 | %2 | %3\n😢 You lost %4$"
   }
 };
 
@@ -55,15 +55,32 @@ module.exports.run = async function({ api, event, args, getText }) {
   const slotItems = ["🖕", "❤️", "👉", "👌", "🥀", "🍓", "🍒", "🍌", "🥝", "🥑", "🌽"];
   let moneyUser = getBalance(senderID);
 
-  const moneyBet = parseInt(args[0]);
-  if (isNaN(moneyBet) || moneyBet <= 0)
-    return api.sendMessage(getText("missingInput"), threadID, messageID);
+  let moneyBet = parseInt(args[0]);
 
-  if (moneyBet > moneyUser)
-    return api.sendMessage(getText("moneyBetNotEnough"), threadID, messageID);
+  // Interactive prompt if no amount provided
+  if (isNaN(moneyBet) || moneyBet <= 0) {
+    return api.sendMessage(
+      getText("missingInput").replace("%balance", moneyUser),
+      threadID,
+      messageID
+    );
+  }
 
-  if (moneyBet < 50)
-    return api.sendMessage(getText("limitBet"), threadID, messageID);
+  if (moneyBet > moneyUser) {
+    return api.sendMessage(
+      getText("moneyBetNotEnough").replace("%balance", moneyUser),
+      threadID,
+      messageID
+    );
+  }
+
+  if (moneyBet < 50) {
+    return api.sendMessage(
+      getText("limitBet").replace("%balance", moneyUser),
+      threadID,
+      messageID
+    );
+  }
 
   // Slot roll
   const slot1 = slotItems[Math.floor(Math.random() * slotItems.length)];
@@ -90,5 +107,5 @@ module.exports.run = async function({ api, event, args, getText }) {
       .replace("%4", moneyBet);
   }
 
-  return api.sendMessage(msg + `\n\nYour balance: ${getBalance(senderID)}$`, threadID, messageID);
+  return api.sendMessage(msg + `\n\n💰 Your current balance: ${getBalance(senderID)}$`, threadID, messageID);
 };
