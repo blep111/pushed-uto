@@ -4,7 +4,7 @@ const path = require('path');
 
 module.exports.config = {
   name: 'thief',
-  version: '1.0.0',
+  version: '1.1.0',
   role: 0,
   aliases: ['wanted', 'poster'],
   description: 'Generate a Wanted Poster-style image with custom name and reward using Betadash API',
@@ -17,12 +17,21 @@ module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, mentions, senderID } = event;
 
   // Determine target user
-  const targetUID = Object.keys(mentions || {})[0] || args[0] || senderID;
+  const targetUID = Object.keys(mentions || {})[0] || args[0];
 
-  // Extract name and reward from arguments
-  // If first arg is a userID or mention, slice it out
+  // Determine name and reward
   const argStartIndex = (Object.keys(mentions || {})[0] || (!isNaN(args[0]) && args[0])) ? 1 : 0;
-  const [name = 'Unknown', reward = 'No reward'] = args.slice(argStartIndex);
+  const name = args.slice(argStartIndex)[0];
+  const reward = args.slice(argStartIndex)[1];
+
+  // Check if all required inputs are provided
+  if (!targetUID || !name || !reward) {
+    return api.sendMessage(
+      `❌ Missing required input!\nPlease provide the following:\n• User mention or ID\n• Name\n• Reward\n\nExample: @user Zilong 100000`,
+      threadID,
+      messageID
+    );
+  }
 
   // Construct API URL
   const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/wanted-poster?userid=${targetUID}&name=${encodeURIComponent(name)}&reward=${encodeURIComponent(reward)}`;
