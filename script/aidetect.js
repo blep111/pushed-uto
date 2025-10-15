@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports.config = {
   name: 'aidetect',
-  version: '1.0.0',
+  version: '1.1.0',
   role: 0,
   aliases: ['checkai', 'aicheck'],
   description: 'Detect if a text is AI-generated using Betadash AI Detect API',
@@ -12,7 +12,7 @@ module.exports.config = {
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, messageID } = event;
 
   // Join all arguments as the text to detect
   const text = args.join(' ');
@@ -25,18 +25,21 @@ module.exports.run = async function ({ api, event, args }) {
 
   // Send initial loading message
   const loadingMsg = await api.sendMessage(
-    `🤖 Detecting if the following text is AI-generated:\n"${text}"\nPlease wait...`,
+    `🤖 Detecting AI content...`,
     threadID
   );
 
   try {
     // Fetch detection result
     const response = await axios.get(apiUrl, { timeout: 60000 });
-    const result = response.data;
+    const data = response.data?.data;
 
-    // Send result
+    // Extract the human-readable feedback
+    const feedback = data?.feedback || 'No result found';
+
+    // Send clean result
     await api.sendMessage(
-      `✅ AI Detection Result:\n\nText: "${text}"\n\nResult: ${result.result || JSON.stringify(result)}`,
+      `📝 Detection Result: ${feedback}`,
       threadID
     );
 
