@@ -1,9 +1,36 @@
-// In-memory user balances (reset on bot restart)
-const balances = {};
+const fs = require('fs-extra');
+const path = require('path');
+
+const balancesFile = path.join(__dirname, 'balances.json');
+
+// Load balances from file or initialize empty
+let balances = {};
+if (fs.existsSync(balancesFile)) {
+  try {
+    balances = fs.readJsonSync(balancesFile);
+  } catch {
+    balances = {};
+  }
+}
+
+// Helper functions
+function saveBalances() {
+  fs.writeJsonSync(balancesFile, balances, { spaces: 2 });
+}
+
+function getBalance(userID) {
+  if (!(userID in balances)) balances[userID] = 2000; // Default starting cash
+  return balances[userID];
+}
+
+function setBalance(userID, amount) {
+  balances[userID] = amount;
+  saveBalances();
+}
 
 module.exports.config = {
   name: "slot",
-  version: "1.0.2",
+  version: "1.1.0",
   role: 0,
   hasPrefix: true,
   aliases: ["slots"],
@@ -23,20 +50,12 @@ module.exports.languages = {
   }
 };
 
-function getBalance(userID) {
-  if (!(userID in balances)) balances[userID] = 2000; // Default starting cash
-  return balances[userID];
-}
-function setBalance(userID, amount) {
-  balances[userID] = amount;
-}
-
 module.exports.run = async function({ api, event, args, getText }) {
   const { threadID, messageID, senderID } = event;
   const slotItems = ["🖕", "❤️", "👉", "👌", "🥀", "🍓", "🍒", "🍌", "🥝", "🥑", "🌽"];
   let moneyUser = getBalance(senderID);
 
-  var moneyBet = parseInt(args[0]);
+  const moneyBet = parseInt(args[0]);
   if (isNaN(moneyBet) || moneyBet <= 0)
     return api.sendMessage(getText("missingInput"), threadID, messageID);
 
@@ -70,5 +89,6 @@ module.exports.run = async function({ api, event, args, getText }) {
       .replace("%3", slot3)
       .replace("%4", moneyBet);
   }
+
   return api.sendMessage(msg + `\n\nYour balance: ${getBalance(senderID)}$`, threadID, messageID);
 };
