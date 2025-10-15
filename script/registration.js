@@ -6,17 +6,41 @@ let users = {};
 
 // Load existing users
 if (fs.existsSync(usersFile)) {
-  try {
-    users = fs.readJsonSync(usersFile);
-  } catch {
-    users = {};
-  }
+  try { users = fs.readJsonSync(usersFile); } catch { users = {}; }
 }
 
 // Save users
 function saveUsers() {
   fs.writeJsonSync(usersFile, users, { spaces: 2 });
 }
+
+const registration = {
+  registerUser: (userID, userName) => {
+    if (!(userID in users)) {
+      users[userID] = { name: userName, balance: 2000 }; // default starting balance
+      saveUsers();
+    }
+  },
+  updateName: (userID, newName) => {
+    if (userID in users) {
+      users[userID].name = newName;
+      saveUsers();
+    }
+  },
+  getUser: (userID) => users[userID],
+  getBalance: (userID) => users[userID]?.balance || 0,
+  addBalance: (userID, amount) => {
+    if (!(userID in users)) return;
+    users[userID].balance += amount;
+    saveUsers();
+  },
+  setBalance: (userID, amount) => {
+    if (!(userID in users)) return;
+    users[userID].balance = amount;
+    saveUsers();
+  },
+  getName: (userID) => users[userID]?.name || "Unknown"
+};
 
 module.exports.config = {
   name: 'register',
@@ -33,30 +57,15 @@ module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
   const name = args.join(' ').trim();
 
-  if (!name) {
-    return api.sendMessage(
-      '❌ Please provide your name to register. Example: register John Doe',
-      threadID,
-      messageID
-    );
-  }
+  if (!name) return api.sendMessage('❌ Please provide your name to register.', threadID, messageID);
 
-  // Register or update user
   if (!(senderID in users)) {
-    users[senderID] = { name: name, balance: 2000 }; // default balance
-    saveUsers();
-    return api.sendMessage(
-      `✅ Registration successful!\n👤 Name: ${name}\n💰 Starting Balance: 2000$`,
-      threadID,
-      messageID
-    );
+    registration.registerUser(senderID, name);
+    return api.sendMessage(`✅ Registered!\n👤 Name: ${name}\n💰 Balance: 2000$`, threadID, messageID);
   } else {
-    users[senderID].name = name; // Update name
-    saveUsers();
-    return api.sendMessage(
-      `✅ Name updated successfully!\n👤 New Name: ${name}\n💰 Current Balance: ${users[senderID].balance}$`,
-      threadID,
-      messageID
-    );
+    registration.updateName(senderID, name);
+    return api.sendMessage(`✅ Name updated!\n👤 Name: ${name}\n💰 Balance: ${registration.getBalance(senderID)}$`, threadID, messageID);
   }
 };
+
+module.exports.registration = registration;
