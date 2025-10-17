@@ -3,14 +3,14 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "yt",
+  name: "youtube",
   version: "1.0.1",
   role: 0,
   hasPrefix: false,
   aliases: ["yt", "ytsearch"],
   description: "Search and send YouTube videos via API",
   usage: "youtube [search query]",
-  credits: "Xren",
+  credits: "You",
   cooldown: 5,
 };
 
