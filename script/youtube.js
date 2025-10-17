@@ -1,16 +1,17 @@
+const ytdl = require("ytdl-core");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
   name: "yt",
-  version: "1.0.1",
+  version: "1.0.0",
   role: 0,
   hasPrefix: false,
-  aliases: ["yt", "ytsearch"],
-  description: "Search and send YouTube videos via API",
-  usage: "youtube [search query]",
-  credits: "Xren",
+  aliases: ["ytv", "ytvideo"],
+  description: "Search YouTube and send the first video as MP4",
+  usage: "youtubevideo [search query]",
+  credits: "You",
   cooldown: 5,
 };
 
@@ -19,7 +20,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a search keyword.\n\nUsage: youtube [search query]",
+      "❌ Please provide a search keyword.\n\nUsage: youtubevideo [search query]",
       threadID,
       messageID
     );
@@ -28,48 +29,74 @@ module.exports.run = async function ({ api, event, args }) {
   const query = encodeURIComponent(args.join(" "));
   const searchURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
-  await api.sendMessage("🔍 Searching YouTube, please wait...", threadID, messageID);
+  await api.sendMessage("🎬 Searching YouTube and preparing video...", threadID, messageID);
 
   try {
+    // Search YouTube
     const searchRes = await axios.get(searchURL);
-    const results = searchRes.data.items; // ✅ fetch the 'items' array
+    const results = searchRes.data.items;
 
     if (!results || results.length === 0) {
-      return api.sendMessage("❌ No videos found.", threadID, messageID);
+      return api.sendMessage("❌ No video found.", threadID, messageID);
     }
 
+    const video = results[0]; // first result
+    const { title, url, thumbnail } = video;
+
+    // Prepare cache folder
     const cacheDir = path.join(__dirname, "cache");
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
-    for (let i = 0; i < results.length; i++) {
-      const video = results[i];
-      const { title, url, thumbnail, duration } = video;
-      const imgPath = path.join(cacheDir, `thumb_${senderID}_${i}.jpg`);
+    const videoPath = path.join(cacheDir, `yt_${senderID}.mp4`);
+    const thumbPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
 
-      // Download thumbnail
-      try {
-        const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
-        fs.writeFileSync(imgPath, imgRes.data);
-      } catch (errThumb) {
-        console.warn("Could not download thumbnail:", errThumb);
-      }
+    // Download thumbnail
+    try {
+      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+      fs.writeFileSync(thumbPath, imgRes.data);
+    } catch (errThumb) {
+      console.warn("Could not download thumbnail:", errThumb);
+    }
 
-      // Send video info + thumbnail
+    // Download YouTube video
+    const videoStream = ytdl(url, { quality: "highest" });
+    const writeStream = fs.createWriteStream(videoPath);
+
+    videoStream.pipe(writeStream);
+
+    writeStream.on("finish", async () => {
+      // Send thumbnail + video
       await api.sendMessage(
         {
-          body: `🎬 Title: ${title}\n⏱ Duration: ${duration}\n🔗 Link: ${url}`,
-          attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
+          body: `🎬 ${title}`,
+          attachment: fs.existsSync(thumbPath) ? fs.createReadStream(thumbPath) : null,
         },
-        threadID
+        threadID,
+        () => {
+          api.sendMessage(
+            {
+              body: "📹 Here’s your video!",
+              attachment: fs.createReadStream(videoPath),
+            },
+            threadID,
+            () => {
+              if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
+              if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+            }
+          );
+        }
       );
+    });
 
-      // Cleanup thumbnail
-      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-    }
-  } catch (error) {
-    console.error("YouTube command error:", error);
+    videoStream.on("error", (err) => {
+      console.error("Video download error:", err);
+      return api.sendMessage("❌ Failed to download video.", threadID, messageID);
+    });
+
+  } catch (err) {
+    console.error("YouTube video command error:", err);
     return api.sendMessage(
-      "❌ An error occurred while searching YouTube. Please try again later.",
+      "❌ An error occurred while fetching the video. Please try again later.",
       threadID,
       messageID
     );
