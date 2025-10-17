@@ -1,82 +1,92 @@
 const axios = require("axios");
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "yt",
+  name: "yt",    // rename command
   version: "1.0.0",
   role: 0,
-  hasPrefix: true,
-  aliases: ["getvideo", "ytvideo"],
-  description: "Get a video from Kaiz API by query and send it to chat.",
-  usage: "yt <query>",
-  credits: "Kaizenji, VernesG",
-  cooldown: 10,
+  hasPrefix: false,
+  aliases: ["yt", "ytsearch"],
+  description: "Search and send a YouTube video via API",
+  usage: "youtube [search query]",
+  credits: "Xren",
+  cooldown: 5,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const threadID = event.threadID;
-  const messageID = event.messageID;
+  const { threadID, messageID, senderID } = event;
 
-  if (!args.length) {
-    return api.sendMessage("📌 Usage: yt <query>\nExample: yt dancing", threadID, messageID);
+  if (!args[0]) {
+    return api.sendMessage(
+      "❌ Please provide a search keyword.\n\nUsage: youtube [search query]",
+      threadID,
+      messageID
+    );
   }
 
-  const query = args.join(" ").trim();
-  const encoded = encodeURIComponent(query);
-  const apiUrl = `https://kaiz-apis.gleeze.com/api/video?query=${encoded}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+  const query = encodeURIComponent(args.join(" "));
+  const searchURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+
+  await api.sendMessage("🔍 Searching YouTube, please wait...", threadID, messageID);
 
   try {
-    // Call Kaiz API
-    const resp = await axios.get(apiUrl);
-    const data = resp.data;
-    if (!data || !data.download_url) {
-      return api.sendMessage(`❌ Could not find video for: ${query}`, threadID, messageID);
+    const searchRes = await axios.get(searchURL);
+    const results = searchRes.data;
+
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return api.sendMessage("❌ No video found.", threadID, messageID);
     }
 
-    // Download video file
-    const downloadResp = await axios({
-      method: "GET",
-      url: data.download_url,
-      responseType: "stream",
-      headers: {
-        // Some video servers require a user-agent
-        "User-Agent": "Mozilla/5.0"
+    const video = results[0];
+    // Expect video object to have something like: title, videoUrl, thumbnail, channelName, etc.
+    const { title, videoUrl, thumbnail, channelName } = video;
+
+    if (!videoUrl) {
+      return api.sendMessage("❌ Video URL not found in API response.", threadID, messageID);
+    }
+
+    // Prepare cache folder
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir);
+    }
+
+    const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
+
+    // Download the thumbnail
+    try {
+      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+      fs.writeFileSync(imgPath, imgRes.data);
+    } catch (errThumb) {
+      console.warn("Could not download thumbnail:", errThumb);
+      // we can continue without image
+    }
+
+    // Send message with video info + thumbnail
+    const msg = {
+      body: `🎬 Title: ${title}\n📺 Channel: ${channelName || "Unknown"}\n🔗 Link: ${videoUrl}`,
+      attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
+    };
+
+    api.sendMessage(msg, threadID, (err) => {
+      if (err) console.error("Error sending thumbnail message:", err);
+      // cleanup image file
+      if (fs.existsSync(imgPath)) {
+        try {
+          fs.unlinkSync(imgPath);
+        } catch (e) {
+          console.warn("Failed to remove thumbnail cache:", e);
+        }
       }
     });
 
-    const fileName = `${messageID}-video.mp4`;
-    const filePath = path.join(__dirname, fileName);
-    const writer = fs.createWriteStream(filePath);
-
-    // Pipe the video stream to the file
-    downloadResp.data.pipe(writer);
-
-    // Handle finish and error events
-    writer.on("finish", async () => {
-      let msg =
-        `🎬 ${data.title || "Video"}\n` +
-        (data.author ? `• Author: ${data.author}\n` : "") +
-        (data.duration ? `• Duration: ${data.duration}\n` : "");
-
-      await api.sendMessage(
-        {
-          body: msg.trim(),
-          attachment: fs.createReadStream(filePath),
-        },
-        threadID,
-        () => fs.unlink(filePath, () => {}),
-        messageID
-      );
-    });
-
-    writer.on("error", (err) => {
-      console.error("File write error:", err);
-      api.sendMessage("❌ Error downloading video file.", threadID, messageID);
-    });
-
-  } catch (err) {
-    console.error("Video API error:", err);
-    return api.sendMessage("❌ Failed to get video. Please try again later.", threadID, messageID);
+  } catch (error) {
+    console.error("YouTube command error:", error);
+    return api.sendMessage(
+      "❌ An error occurred while searching YouTube. Please try again later.",
+      threadID,
+      messageID
+    );
   }
 };
