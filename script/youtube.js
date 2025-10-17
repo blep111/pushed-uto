@@ -11,7 +11,7 @@ module.exports.config = {
   aliases: ["ytv", "ytvideo"],
   description: "Search YouTube and send the first video as MP4",
   usage: "youtubevideo [search query]",
-  credits: "You",
+  credits: "Xren",
   cooldown: 5,
 };
 
