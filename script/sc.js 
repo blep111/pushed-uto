@@ -1,0 +1,91 @@
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+
+module.exports.config = {
+  name: "sc",
+  version: "1.0.0",
+  role: 0,
+  hasPrefix: false,
+  aliases: ["sc", "scsearch"],
+  description: "Search and send a SoundCloud track via API",
+  usage: "soundcloud [search query]",
+  credits: "Xren",
+  cooldown: 5,
+};
+
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, senderID } = event;
+
+  if (!args[0]) {
+    return api.sendMessage(
+      "❌ Please provide a search keyword.\n\nUsage: soundcloud [search query]",
+      threadID,
+      messageID
+    );
+  }
+
+  const query = encodeURIComponent(args.join(" "));
+  const searchURL = `https://kaiz-apis.gleeze.com/api/soundcloud-search?title=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+
+  await api.sendMessage("🔍 Searching SoundCloud, please wait...", threadID, messageID);
+
+  try {
+    const searchRes = await axios.get(searchURL);
+    const results = searchRes.data;
+
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return api.sendMessage("❌ No track found.", threadID, messageID);
+    }
+
+    const track = results[0];
+    const { title, permalink_url, artwork_url, user } = track;
+
+    if (!permalink_url) {
+      return api.sendMessage("❌ Track URL not found in API response.", threadID, messageID);
+    }
+
+    // Prepare cache folder
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir);
+    }
+
+    const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
+
+    // Download the artwork
+    try {
+      const imgRes = await axios.get(artwork_url, { responseType: "arraybuffer" });
+      fs.writeFileSync(imgPath, imgRes.data);
+    } catch (errThumb) {
+      console.warn("Could not download artwork:", errThumb);
+      // we can continue without image
+    }
+
+    // Send message with track info + artwork
+    const msg = {
+      body: `🎵 Title: ${title}\n🎧 Artist: ${user.username}\n🔗 Link: ${permalink_url}`,
+      attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
+    };
+
+    api.sendMessage(msg, threadID, (err) => {
+      if (err) console.error("Error sending artwork message:", err);
+      // cleanup image file
+      if (fs.existsSync(imgPath)) {
+        try {
+          fs.unlinkSync(imgPath);
+        } catch (e) {
+          console.warn("Failed to remove artwork cache:", e);
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("SoundCloud command error:", error);
+    return api.sendMessage(
+      "❌ An error occurred while searching SoundCloud. Please try again later.",
+      threadID,
+      messageID
+    );
+  }
+};
