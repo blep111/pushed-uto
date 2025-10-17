@@ -24,7 +24,7 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   const keyword = encodeURIComponent(args.join(" "));
-  const searchURL = `https://kaiz-apis.gleeze.com/api/spotify-search?q=${keyword}&apikey=8aa2f0a0-cbb9-40b8-a7d8-bba320cb9b10`;
+  const searchURL = `https://kaiz-apis.gleeze.com/api/spotify-search?q=${keyword}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
   await api.sendMessage("Traacking song please wait...", threadID, messageID);
 
