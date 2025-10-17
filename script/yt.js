@@ -3,14 +3,14 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "yt",    // rename command
-  version: "1.0.0",
+  name: "soundcloud",
+  version: "1.0.1",
   role: 0,
   hasPrefix: false,
-  aliases: ["yt", "ytsearch"],
-  description: "Search and send a YouTube video via API",
-  usage: "youtube [search query]",
-  credits: "Xren",
+  aliases: ["sc", "scsearch"],
+  description: "Search and send a SoundCloud track via API",
+  usage: "soundcloud [track title]",
+  credits: "You",
   cooldown: 5,
 };
 
@@ -19,72 +19,60 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a search keyword.\n\nUsage: youtube [search query]",
+      "❌ Please provide a track title.\n\nUsage: soundcloud [track title]",
       threadID,
       messageID
     );
   }
 
   const query = encodeURIComponent(args.join(" "));
-  const searchURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+  const searchURL = `https://kaiz-apis.gleeze.com/api/soundcloud-search?title=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
-  await api.sendMessage("🔍 Searching YouTube, please wait...", threadID, messageID);
+  await api.sendMessage("🔍 Searching SoundCloud, please wait...", threadID, messageID);
 
   try {
     const searchRes = await axios.get(searchURL);
-    const results = searchRes.data;
+    const results = searchRes.data.results; // ✅ use results array
 
-    if (!results || !Array.isArray(results) || results.length === 0) {
-      return api.sendMessage("❌ No video found.", threadID, messageID);
+    if (!results || results.length === 0) {
+      return api.sendMessage("❌ No track found.", threadID, messageID);
     }
 
-    const video = results[0];
-    // Expect video object to have something like: title, videoUrl, thumbnail, channelName, etc.
-    const { title, videoUrl, thumbnail, channelName } = video;
+    // Find the first result that matches the user input (case-insensitive)
+    const track = results.find(t =>
+      t.title.toLowerCase().includes(args.join(" ").toLowerCase())
+    ) || results[0]; // fallback to first if no exact match
 
-    if (!videoUrl) {
-      return api.sendMessage("❌ Video URL not found in API response.", threadID, messageID);
-    }
+    const { title, url, artist, thumbnail, duration, plays, uploaded } = track;
 
-    // Prepare cache folder
     const cacheDir = path.join(__dirname, "cache");
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir);
-    }
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
     const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
 
-    // Download the thumbnail
+    // Download thumbnail
     try {
       const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
       fs.writeFileSync(imgPath, imgRes.data);
     } catch (errThumb) {
-      console.warn("Could not download thumbnail:", errThumb);
-      // we can continue without image
+      console.warn("Could not download artwork:", errThumb);
     }
 
-    // Send message with video info + thumbnail
+    // Send track info + thumbnail
     const msg = {
-      body: `🎬 Title: ${title}\n📺 Channel: ${channelName || "Unknown"}\n🔗 Link: ${videoUrl}`,
+      body: `🎵 Title: ${title}\n👤 Artist: ${artist}\n⏱ Duration: ${duration}\n🔊 Plays: ${plays}\n📤 Uploaded: ${uploaded}\n🔗 Link: ${url}`,
       attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
     };
 
     api.sendMessage(msg, threadID, (err) => {
-      if (err) console.error("Error sending thumbnail message:", err);
-      // cleanup image file
-      if (fs.existsSync(imgPath)) {
-        try {
-          fs.unlinkSync(imgPath);
-        } catch (e) {
-          console.warn("Failed to remove thumbnail cache:", e);
-        }
-      }
+      if (err) console.error("Error sending message:", err);
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath); // cleanup
     });
 
   } catch (error) {
-    console.error("YouTube command error:", error);
+    console.error("SoundCloud command error:", error);
     return api.sendMessage(
-      "❌ An error occurred while searching YouTube. Please try again later.",
+      "❌ An error occurred while searching SoundCloud. Please try again later.",
       threadID,
       messageID
     );
