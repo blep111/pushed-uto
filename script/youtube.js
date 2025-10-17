@@ -11,7 +11,7 @@ module.exports.config = {
   aliases: ["ytv", "ytvideo"],
   description: "Download only the first YouTube video result (no spam)",
   usage: "yt [search query]",
-  credits: "You",
+  credits: "Xren",
   cooldown: 5,
 };
 
