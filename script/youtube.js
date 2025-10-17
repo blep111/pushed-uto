@@ -5,13 +5,13 @@ const path = require("path");
 
 module.exports.config = {
   name: "yt",
-  version: "1.0.4",
+  version: "1.0.6",
   role: 0,
   hasPrefix: false,
   aliases: ["ytv", "ytvideo"],
-  description: "Search YouTube and send the first video as MP4 with thumbnail",
-  usage: "youtubevideo [search query]",
-  credits: "You",
+  description: "Search YouTube and download only the first video result",
+  usage: "yt [search query]",
+  credits: "Xren",
   cooldown: 5,
 };
 
@@ -20,7 +20,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a search keyword.\n\nUsage: youtubevideo [search query]",
+      "❌ Please provide a search keyword.\n\nUsage: yt [search query]",
       threadID,
       messageID
     );
@@ -29,21 +29,28 @@ module.exports.run = async function ({ api, event, args }) {
   const query = encodeURIComponent(args.join(" "));
   const searchURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
-  await api.sendMessage("🎬 Searching YouTube and preparing video...", threadID, messageID);
+  await api.sendMessage("🎬 Searching YouTube for the first result...", threadID, messageID);
 
   try {
-    // Search YouTube
+    // Fetch search results
     const searchRes = await axios.get(searchURL);
     const results = searchRes.data.items;
 
+    // ✅ Only use the very first result
     if (!results || results.length === 0) {
-      return api.sendMessage("❌ No video found.", threadID, messageID);
+      return api.sendMessage("❌ No results found for your query.", threadID, messageID);
     }
 
-    const video = results[0]; // ✅ only first result
-    const { title, url, thumbnail } = video;
+    const firstVideo = results[0];
+    const title = firstVideo.title || "Untitled Video";
+    const videoUrl = firstVideo.url;
+    const thumbnail = firstVideo.thumbnail;
 
-    // Prepare cache folder
+    if (!videoUrl) {
+      return api.sendMessage("❌ No valid video URL found.", threadID, messageID);
+    }
+
+    // Prepare cache directory
     const cacheDir = path.join(__dirname, "cache");
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
@@ -52,35 +59,35 @@ module.exports.run = async function ({ api, event, args }) {
 
     // Download thumbnail
     try {
-      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
-      fs.writeFileSync(thumbPath, imgRes.data);
+      const thumbRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+      fs.writeFileSync(thumbPath, thumbRes.data);
     } catch (errThumb) {
-      console.warn("Could not download thumbnail:", errThumb);
+      console.warn("⚠️ Thumbnail download failed:", errThumb.message);
     }
 
-    // Download YouTube video
-    const videoStream = ytdl(url, { quality: "highestvideo" });
+    // Download video
+    const videoStream = ytdl(videoUrl, { quality: "highestvideo" });
     const writeStream = fs.createWriteStream(videoPath);
     videoStream.pipe(writeStream);
 
     writeStream.on("finish", async () => {
-      // Send thumbnail first
+      // Send thumbnail first with title
       await api.sendMessage(
         {
           body: `🎬 ${title}`,
           attachment: fs.existsSync(thumbPath) ? fs.createReadStream(thumbPath) : null,
         },
         threadID,
-        () => {
-          // Then send video
-          api.sendMessage(
+        async () => {
+          // Then send the video
+          await api.sendMessage(
             {
-              body: "📹 Here’s your video!",
+              body: "📹 Here's the first YouTube video result:",
               attachment: fs.createReadStream(videoPath),
             },
             threadID,
             () => {
-              // Cleanup temporary files
+              // Cleanup
               if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
               if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
             }
@@ -90,16 +97,12 @@ module.exports.run = async function ({ api, event, args }) {
     });
 
     videoStream.on("error", (err) => {
-      console.error("Video download error:", err);
-      return api.sendMessage("❌ Failed to download video.", threadID, messageID);
+      console.error("❌ Video download error:", err);
+      api.sendMessage("❌ Failed to download the video.", threadID, messageID);
     });
 
   } catch (err) {
-    console.error("YouTube video command error:", err);
-    return api.sendMessage(
-      "❌ An error occurred while fetching the video. Please try again later.",
-      threadID,
-      messageID
-    );
+    console.error("❌ YouTube command error:", err);
+    api.sendMessage("❌ An error occurred while fetching the video.", threadID, messageID);
   }
 };
