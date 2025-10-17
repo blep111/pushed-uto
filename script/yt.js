@@ -1,69 +1,87 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-const ytdl = require("@distube/ytdl-core"); // <- newer, patched fork
+const ytdl = require("@distube/ytdl-core"); // patched YouTube downloader
 
 module.exports.config = {
   name: "sc",
-  version: "1.1.0",
+  version: "1.0.0",
   role: 0,
-  aliases: ["ytvideo", "ytmetadata"],
-  description: "Fetch a YouTube video by title and send it directly",
-  usage: "ytmeta <title>",
-  credits: "Xren",
+  hasPrefix: false,
+  aliases: [],
+  description: "Search and download YouTube video by title.",
+  usage: "youtube [video name]",
+  credits: "Vern",
   cooldown: 5,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
-  if (!args[0])
-    return api.sendMessage(
-      "❌ Please provide a video title.\nExample: ytmeta multo cup of joe",
-      threadID,
-      messageID
-    );
+  const threadID = event.threadID;
+  const messageID = event.messageID;
+  const senderID = event.senderID;
 
-  const query = encodeURIComponent(args.join(" "));
-  const infoURL = `https://kaiz-apis.gleeze.com/api/yt-metadata?title=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+  if (!args[0]) {
+    return api.sendMessage("❌ Please provide a video title.\n\nUsage: youtube [video name]", threadID, messageID);
+  }
+
+  const keyword = encodeURIComponent(args.join(" "));
+  const searchURL = `https://kaiz-apis.gleeze.com/api/yt-metadata?title=${keyword}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+
+  await api.sendMessage("📹 Fetching YouTube video, please wait...", threadID, messageID);
 
   try {
-    await api.sendMessage("🎬 Searching and fetching video…", threadID, messageID);
-    const { data } = await axios.get(infoURL);
+    const searchRes = await axios.get(searchURL);
+    const data = searchRes.data;
 
-    if (!data?.url) return api.sendMessage("⚠️ No video found.", threadID, messageID);
+    if (!data || !data.url) {
+      return api.sendMessage("❌ No YouTube video found.", threadID, messageID);
+    }
 
-    const { title, thumbnail, duration, views, author, uploaded, url } = data;
+    const { title, author, duration, thumbnail, url, views, uploaded } = data;
+
     const cacheDir = path.join(__dirname, "cache");
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
-    const videoPath = path.join(cacheDir, `yt_${senderID}.mp4`);
 
-    // try to download a playable small format
-    const stream = ytdl(url, {
-      filter: (f) => f.container === "mp4" && f.hasAudio && f.hasVideo && f.qualityLabel === "360p",
-      quality: "18",
-      requestOptions: { maxReconnects: 5 },
+    const videoPath = path.join(cacheDir, `video_${senderID}.mp4`);
+    const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
+
+    // Download thumbnail
+    const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+    fs.writeFileSync(imgPath, imgRes.data);
+
+    // Download YouTube video
+    const videoStream = ytdl(url, {
+      filter: (f) => f.container === "mp4" && f.hasAudio && f.hasVideo,
+      quality: "lowest", // choose safe format for sending
     });
 
     const writer = fs.createWriteStream(videoPath);
-    stream.pipe(writer);
+    videoStream.pipe(writer);
 
     writer.on("finish", async () => {
-      const caption = `🎵 ${title}\n👤 ${author}\n⏱️ ${duration}\n👁️ ${views}\n📅 ${uploaded}`;
-      await api.sendMessage(
-        { body: caption, attachment: fs.createReadStream(videoPath) },
-        threadID,
-        () => {
+      // Send thumbnail first with info
+      api.sendMessage({
+        body: `🎬 Title: ${title}\n👤 Channel: ${author}\n⏱ Duration: ${duration}\n👁 Views: ${views}\n📅 Uploaded: ${uploaded}`,
+        attachment: fs.createReadStream(imgPath)
+      }, threadID, () => {
+        // Then send video
+        api.sendMessage({
+          body: "🎥 Here’s your YouTube video!",
+          attachment: fs.createReadStream(videoPath)
+        }, threadID, () => {
           fs.unlinkSync(videoPath);
-        }
-      );
+          fs.unlinkSync(imgPath);
+        });
+      });
     });
 
-    stream.on("error", (err) => {
-      console.error("Download error:", err.message);
-      api.sendMessage("❌ Could not download video (format restricted).", threadID, messageID);
+    writer.on("error", (err) => {
+      console.error("Download error:", err);
+      api.sendMessage("❌ Failed to download the video.", threadID, messageID);
     });
-  } catch (e) {
-    console.error(e);
-    api.sendMessage("⚠️ Error fetching video. Try again later.", threadID, messageID);
+
+  } catch (error) {
+    console.error("YouTube command error:", error);
+    return api.sendMessage("❌ An error occurred while processing your request.", threadID, messageID);
   }
 };
