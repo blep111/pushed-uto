@@ -1,95 +1,119 @@
+const ytdl = require("ytdl-core");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-const ytdl = require("@distube/ytdl-core"); // fixed YouTube downloader
 
 module.exports.config = {
-  name: "sc",
-  version: "1.0.0",
+  name: "yt",
+  version: "1.0.8",
   role: 0,
   hasPrefix: false,
-  aliases: [],
-  description: "Search and download YouTube video by title.",
-  usage: "youtube [video name]",
-  credits: "Vern",
+  aliases: ["ytv", "ytvideo"],
+  description: "Search YouTube and download only the first video result (fixed)",
+  usage: "yt [search query]",
+  credits: "Xren",
   cooldown: 5,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const threadID = event.threadID;
-  const messageID = event.messageID;
-  const senderID = event.senderID;
+  const { threadID, messageID, senderID } = event;
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a search keyword.\n\nUsage: youtube [video name]",
+      "❌ Please provide a search keyword.\n\nUsage: yt [search query]",
       threadID,
       messageID
     );
   }
 
-  const keyword = encodeURIComponent(args.join(" "));
-  const apiURL = `https://kaiz-apis.gleeze.com/api/yt-metadata?title=${keyword}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+  const query = encodeURIComponent(args.join(" "));
+  const apiURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
-  await api.sendMessage("📹 Searching video, please wait...", threadID, messageID);
+  await api.sendMessage("🔍 Searching YouTube video...", threadID, messageID);
 
   try {
-    const res = await axios.get(apiURL);
-    const data = res.data;
+    // Get search results
+    const { data } = await axios.get(apiURL);
+    const items = Array.isArray(data.items) ? data.items : [];
 
-    if (!data || !data.url) {
-      return api.sendMessage("❌ No YouTube video found.", threadID, messageID);
+    if (items.length === 0) {
+      return api.sendMessage("❌ No results found for your query.", threadID, messageID);
     }
 
-    const { title, author, thumbnail, duration, views, uploaded, url } = data;
+    // ✅ Get the first result only
+    const first = items[0];
+    let title = first.title || "Untitled Video";
+    let videoUrl = first.url;
+    const thumbnail = first.thumbnail;
 
-    const imgPath = path.join(__dirname, "cache", `thumb_${senderID}.jpg`);
-    const videoPath = path.join(__dirname, "cache", `video_${senderID}.mp4`);
+    // 🔧 Fix incomplete YouTube links
+    if (videoUrl && !videoUrl.startsWith("http")) {
+      videoUrl = `https://www.youtube.com${videoUrl}`;
+    }
+
+    // ✅ Validate the URL
+    if (!ytdl.validateURL(videoUrl)) {
+      return api.sendMessage("❌ Invalid YouTube video URL.", threadID, messageID);
+    }
+
+    // Prepare cache folder
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+
+    const videoPath = path.join(cacheDir, `yt_${senderID}.mp4`);
+    const thumbPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
 
     // Download thumbnail
-    const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
-    fs.writeFileSync(imgPath, imgRes.data);
+    try {
+      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+      fs.writeFileSync(thumbPath, imgRes.data);
+    } catch {
+      console.warn("⚠️ Could not download thumbnail.");
+    }
 
-    // Download YouTube video
-    const videoStream = ytdl(url, {
-      filter: (f) => f.container === "mp4" && f.hasAudio && f.hasVideo,
-      quality: "lowest",
+    // ✅ Download only one video stream
+    const videoStream = ytdl(videoUrl, {
+      quality: "highest",
+      filter: "audioandvideo",
+      highWaterMark: 1 << 25, // Prevent stream errors
     });
 
-    const writer = fs.createWriteStream(videoPath);
-    videoStream.pipe(writer);
+    const writeStream = fs.createWriteStream(videoPath);
+    videoStream.pipe(writeStream);
 
-    writer.on("finish", () => {
-      // Send thumbnail and info first
-      api.sendMessage(
+    writeStream.on("finish", async () => {
+      // Send thumbnail and title
+      await api.sendMessage(
         {
-          body: `🎬 Title: ${title}\n👤 Channel: ${author}\n⏱ Duration: ${duration}\n👁 Views: ${views}\n📅 Uploaded: ${uploaded}`,
-          attachment: fs.createReadStream(imgPath),
+          body: `🎬 ${title}`,
+          attachment: fs.existsSync(thumbPath) ? fs.createReadStream(thumbPath) : null,
         },
         threadID,
-        () => {
-          // Send the video file
-          api.sendMessage(
+        async () => {
+          // Send video
+          await api.sendMessage(
             {
-              body: "🎥 Here's your YouTube video!",
+              body: "📹 Here's your YouTube video (first result):",
               attachment: fs.createReadStream(videoPath),
             },
             threadID,
             () => {
-              fs.unlinkSync(imgPath);
-              fs.unlinkSync(videoPath);
+              // Cleanup
+              if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
+              if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
             }
           );
         }
       );
     });
 
-    writer.on("error", (err) => {
-      console.error("Download error:", err);
-      api.sendMessage("❌ Failed to download the video.", threadID, messageID);
+    videoStream.on("error", (err) => {
+      console.error("❌ Video download error:", err.message);
+      api.sendMessage("❌ Failed to download the video (may be region-locked or private).", threadID, messageID);
     });
-  } catch (error) {
-    console.error("YouTube command error:", error);
-    return api.sendMessage("❌ An error occurred while processing your request.", threadID, messageID);
+
+  } catch (err) {
+    console.error("❌ YouTube API error:", err.message);
+    api.sendMessage("❌ An error occurred while fetching the video.", threadID, messageID);
   }
 };
