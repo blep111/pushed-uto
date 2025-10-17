@@ -5,13 +5,13 @@ const path = require("path");
 
 module.exports.config = {
   name: "yt",
-  version: "1.0.0",
+  version: "1.0.4",
   role: 0,
   hasPrefix: false,
   aliases: ["ytv", "ytvideo"],
-  description: "Search YouTube and send the first video as MP4",
+  description: "Search YouTube and send the first video as MP4 with thumbnail",
   usage: "youtubevideo [search query]",
-  credits: "Xren",
+  credits: "You",
   cooldown: 5,
 };
 
@@ -40,7 +40,7 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("❌ No video found.", threadID, messageID);
     }
 
-    const video = results[0]; // first result
+    const video = results[0]; // ✅ only first result
     const { title, url, thumbnail } = video;
 
     // Prepare cache folder
@@ -59,13 +59,12 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     // Download YouTube video
-    const videoStream = ytdl(url, { quality: "highest" });
+    const videoStream = ytdl(url, { quality: "highestvideo" });
     const writeStream = fs.createWriteStream(videoPath);
-
     videoStream.pipe(writeStream);
 
     writeStream.on("finish", async () => {
-      // Send thumbnail + video
+      // Send thumbnail first
       await api.sendMessage(
         {
           body: `🎬 ${title}`,
@@ -73,6 +72,7 @@ module.exports.run = async function ({ api, event, args }) {
         },
         threadID,
         () => {
+          // Then send video
           api.sendMessage(
             {
               body: "📹 Here’s your video!",
@@ -80,6 +80,7 @@ module.exports.run = async function ({ api, event, args }) {
             },
             threadID,
             () => {
+              // Cleanup temporary files
               if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
               if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
             }
