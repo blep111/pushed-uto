@@ -10,7 +10,7 @@ module.exports.config = {
   aliases: ["sca", "soundcloudmp3"],
   description: "Search SoundCloud and send the first track as MP3",
   usage: "soundcloudaudio [track title]",
-  credits: "Xren",
+  credits: "Xrenn",
   cooldown: 5,
 };
 
