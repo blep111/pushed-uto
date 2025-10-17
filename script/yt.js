@@ -5,11 +5,11 @@ const path = require("path");
 
 module.exports.config = {
   name: "yt",
-  version: "1.0.5",
+  version: "1.0.4",
   role: 0,
   hasPrefix: false,
   aliases: ["ytv", "ytvideo"],
-  description: "Search YouTube and send only the first video as MP4 with thumbnail",
+  description: "Search YouTube and send the first video as MP4 with thumbnail",
   usage: "youtubevideo [search query]",
   credits: "Xren",
   cooldown: 5,
@@ -29,27 +29,19 @@ module.exports.run = async function ({ api, event, args }) {
   const query = encodeURIComponent(args.join(" "));
   const searchURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
-  await api.sendMessage("🎬 Searching YouTube for the first video...", threadID, messageID);
+  await api.sendMessage("🎬 Searching YouTube and preparing video...", threadID, messageID);
 
   try {
-    // Fetch search results
+    // Search YouTube
     const searchRes = await axios.get(searchURL);
     const results = searchRes.data.items;
 
-    // ✅ Only use the first result
     if (!results || results.length === 0) {
       return api.sendMessage("❌ No video found.", threadID, messageID);
     }
 
-    const firstVideo = results[0];
-    let { title, url, thumbnail } = firstVideo;
-
-    // 🔧 Fix URL if incomplete
-    if (!url.startsWith("http")) url = `https://www.youtube.com${url}`;
-
-    if (!ytdl.validateURL(url)) {
-      return api.sendMessage("❌ Invalid YouTube URL.", threadID, messageID);
-    }
+    const video = results[0]; // ✅ only first result
+    const { title, url, thumbnail } = video;
 
     // Prepare cache folder
     const cacheDir = path.join(__dirname, "cache");
@@ -62,11 +54,11 @@ module.exports.run = async function ({ api, event, args }) {
     try {
       const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
       fs.writeFileSync(thumbPath, imgRes.data);
-    } catch {
-      console.warn("⚠️ Could not download thumbnail.");
+    } catch (errThumb) {
+      console.warn("Could not download thumbnail:", errThumb);
     }
 
-    // Download only the first video
+    // Download YouTube video
     const videoStream = ytdl(url, { quality: "highestvideo" });
     const writeStream = fs.createWriteStream(videoPath);
     videoStream.pipe(writeStream);
@@ -79,16 +71,16 @@ module.exports.run = async function ({ api, event, args }) {
           attachment: fs.existsSync(thumbPath) ? fs.createReadStream(thumbPath) : null,
         },
         threadID,
-        async () => {
-          // Send video
-          await api.sendMessage(
+        () => {
+          // Then send video
+          api.sendMessage(
             {
-              body: "📹 Here's your video (first result only):",
+              body: "📹 Here’s your video!",
               attachment: fs.createReadStream(videoPath),
             },
             threadID,
             () => {
-              // Cleanup
+              // Cleanup temporary files
               if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
               if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
             }
@@ -98,17 +90,13 @@ module.exports.run = async function ({ api, event, args }) {
     });
 
     videoStream.on("error", (err) => {
-      console.error("❌ Video download error:", err.message);
-      api.sendMessage(
-        "❌ Failed to download video. It might be private, region-locked, or removed.",
-        threadID,
-        messageID
-      );
+      console.error("Video download error:", err);
+      return api.sendMessage("❌ Failed to download video.", threadID, messageID);
     });
 
   } catch (err) {
-    console.error("❌ YouTube command error:", err.message);
-    api.sendMessage(
+    console.error("YouTube video command error:", err);
+    return api.sendMessage(
       "❌ An error occurred while fetching the video. Please try again later.",
       threadID,
       messageID
