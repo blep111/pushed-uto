@@ -3,13 +3,13 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "soundcloud",
+  name: "soundcloudaudio",
   version: "1.0.1",
   role: 0,
   hasPrefix: false,
-  aliases: ["sc", "scsearch"],
-  description: "Search and send a SoundCloud track via API",
-  usage: "soundcloud [track title]",
+  aliases: ["sca", "soundcloudmp3"],
+  description: "Search SoundCloud and send the first track as MP3",
+  usage: "soundcloudaudio [track title]",
   credits: "You",
   cooldown: 5,
 };
@@ -19,7 +19,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a track title.\n\nUsage: soundcloud [track title]",
+      "❌ Please provide a track title.\n\nUsage: soundcloudaudio [track title]",
       threadID,
       messageID
     );
@@ -32,22 +32,25 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
     const searchRes = await axios.get(searchURL);
-    const results = searchRes.data.results; // ✅ use results array
+    const results = searchRes.data.results;
 
     if (!results || results.length === 0) {
       return api.sendMessage("❌ No track found.", threadID, messageID);
     }
 
-    // Find the first result that matches the user input (case-insensitive)
-    const track = results.find(t =>
-      t.title.toLowerCase().includes(args.join(" ").toLowerCase())
-    ) || results[0]; // fallback to first if no exact match
-
+    // Get the first track
+    const track = results[0];
     const { title, url, artist, thumbnail, duration, plays, uploaded } = track;
 
+    if (!url) {
+      return api.sendMessage("❌ Could not fetch audio URL.", threadID, messageID);
+    }
+
+    // Prepare cache folder
     const cacheDir = path.join(__dirname, "cache");
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
+    const audioPath = path.join(cacheDir, `audio_${senderID}.mp3`);
     const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
 
     // Download thumbnail
@@ -58,21 +61,36 @@ module.exports.run = async function ({ api, event, args }) {
       console.warn("Could not download artwork:", errThumb);
     }
 
-    // Send track info + thumbnail
-    const msg = {
-      body: `🎵 Title: ${title}\n👤 Artist: ${artist}\n⏱ Duration: ${duration}\n🔊 Plays: ${plays}\n📤 Uploaded: ${uploaded}\n🔗 Link: ${url}`,
-      attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
-    };
+    // Download audio
+    const audioRes = await axios.get(url, { responseType: "arraybuffer" });
+    fs.writeFileSync(audioPath, audioRes.data);
 
-    api.sendMessage(msg, threadID, (err) => {
-      if (err) console.error("Error sending message:", err);
-      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath); // cleanup
-    });
-
-  } catch (error) {
-    console.error("SoundCloud command error:", error);
+    // Send thumbnail + audio
+    await api.sendMessage(
+      {
+        body: `🎵 Title: ${title}\n👤 Artist: ${artist}\n⏱ Duration: ${duration}\n🔊 Plays: ${plays}\n📤 Uploaded: ${uploaded}`,
+        attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
+      },
+      threadID,
+      () => {
+        api.sendMessage(
+          {
+            body: "🎧 Here’s your track!",
+            attachment: fs.createReadStream(audioPath),
+          },
+          threadID,
+          () => {
+            // Cleanup
+            if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+            if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+          }
+        );
+      }
+    );
+  } catch (err) {
+    console.error("SoundCloud audio command error:", err);
     return api.sendMessage(
-      "❌ An error occurred while searching SoundCloud. Please try again later.",
+      "❌ An error occurred while fetching the SoundCloud track. Please try again later.",
       threadID,
       messageID
     );
