@@ -22,7 +22,7 @@ module.exports.config = {
   version: '1.4.0',
   role: 2,
   cooldown: 0,
-  credits: "Vern",
+  credits: "Xren",
   hasPrefix: false,
   usage: "active-session",
   dependencies: {
