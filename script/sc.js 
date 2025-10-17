@@ -4,12 +4,12 @@ const path = require("path");
 
 module.exports.config = {
   name: "sc",
-  version: "1.0.0",
+  version: "1.0.1",
   role: 0,
   hasPrefix: false,
   aliases: ["sc", "scsearch"],
   description: "Search and send a SoundCloud track via API",
-  usage: "soundcloud [search query]",
+  usage: "soundcloud [track title]",
   credits: "Xren",
   cooldown: 5,
 };
@@ -19,7 +19,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a search keyword.\n\nUsage: soundcloud [search query]",
+      "❌ Please provide a track title.\n\nUsage: soundcloud [track title]",
       threadID,
       messageID
     );
@@ -32,52 +32,41 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
     const searchRes = await axios.get(searchURL);
-    const results = searchRes.data;
+    const results = searchRes.data.results; // ✅ use results array
 
-    if (!results || !Array.isArray(results) || results.length === 0) {
+    if (!results || results.length === 0) {
       return api.sendMessage("❌ No track found.", threadID, messageID);
     }
 
-    const track = results[0];
-    const { title, permalink_url, artwork_url, user } = track;
+    // Find the first result that matches the user input (case-insensitive)
+    const track = results.find(t =>
+      t.title.toLowerCase().includes(args.join(" ").toLowerCase())
+    ) || results[0]; // fallback to first if no exact match
 
-    if (!permalink_url) {
-      return api.sendMessage("❌ Track URL not found in API response.", threadID, messageID);
-    }
+    const { title, url, artist, thumbnail, duration, plays, uploaded } = track;
 
-    // Prepare cache folder
     const cacheDir = path.join(__dirname, "cache");
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir);
-    }
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
     const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
 
-    // Download the artwork
+    // Download thumbnail
     try {
-      const imgRes = await axios.get(artwork_url, { responseType: "arraybuffer" });
+      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
       fs.writeFileSync(imgPath, imgRes.data);
     } catch (errThumb) {
       console.warn("Could not download artwork:", errThumb);
-      // we can continue without image
     }
 
-    // Send message with track info + artwork
+    // Send track info + thumbnail
     const msg = {
-      body: `🎵 Title: ${title}\n🎧 Artist: ${user.username}\n🔗 Link: ${permalink_url}`,
+      body: `🎵 Title: ${title}\n👤 Artist: ${artist}\n⏱ Duration: ${duration}\n🔊 Plays: ${plays}\n📤 Uploaded: ${uploaded}\n🔗 Link: ${url}`,
       attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : null,
     };
 
     api.sendMessage(msg, threadID, (err) => {
-      if (err) console.error("Error sending artwork message:", err);
-      // cleanup image file
-      if (fs.existsSync(imgPath)) {
-        try {
-          fs.unlinkSync(imgPath);
-        } catch (e) {
-          console.warn("Failed to remove artwork cache:", e);
-        }
-      }
+      if (err) console.error("Error sending message:", err);
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath); // cleanup
     });
 
   } catch (error) {
