@@ -11,7 +11,7 @@ module.exports.config = {
   description: "Live bot uptime with dynamic image updates every second",
   usage: "uptime",
   credits: "Xren",
-  cooldown: 3,
+  cooldown: 0,
 };
 
 module.exports.run = async function ({ api, event }) {
