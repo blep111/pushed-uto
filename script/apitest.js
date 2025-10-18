@@ -1,30 +1,31 @@
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 module.exports.config = {
   name: "apitest",
-  version: "1.1.1",
+  version: "1.3.0",
   role: 0,
   hasPrefix: false,
   aliases: ["fetchapi", "apitest"],
-  description: "Fetch API response. If media URLs, send URLs only. If text, send text.",
+  description: "Fetch API URL, display success, and send media if available",
   usage: "api <api_url>",
   credits: "Xren",
   cooldown: 3,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID } = event;
+  const { threadID, messageID, senderID } = event;
 
   if (!args[0]) {
     return api.sendMessage(
-      "⚠️ Please provide a valid API URL.\n\nExample:\napi https://api-rynxzei.onrender.com/api/birdfact",
+      "⚠️ Please provide a valid API URL.\n\nExample:\napi https://vern-rest-api.vercel.app/api/billboard?text=hi",
       threadID,
       messageID
     );
   }
 
   const url = args[0].trim();
-
   if (!/^https?:\/\//i.test(url)) {
     return api.sendMessage("❌ Invalid URL. Must start with http:// or https://", threadID, messageID);
   }
@@ -32,6 +33,49 @@ module.exports.run = async function ({ api, event, args }) {
   await api.sendMessage("⏳ Fetching data from the provided API URL...", threadID, messageID);
 
   try {
+    // Check the content-type using HEAD request
+    let headRes;
+    try {
+      headRes = await axios.head(url, { timeout: 8000 });
+    } catch (headErr) {
+      headRes = await axios.get(url, { method: "GET", timeout: 10000, maxContentLength: 1, validateStatus: () => true });
+    }
+
+    const contentType = (headRes.headers && headRes.headers["content-type"])
+      ? headRes.headers["content-type"].toLowerCase()
+      : "";
+
+    const statusText = "✅ Status: Success";
+
+    // If media, download and send as attachment
+    if (contentType.startsWith("image/") || contentType.startsWith("video/")) {
+      const ext = contentType.split("/")[1] || "jpg";
+      const filePath = path.join(__dirname, `cache/api_media_${senderID}.${ext}`);
+
+      try {
+        const mediaRes = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
+        fs.writeFileSync(filePath, mediaRes.data);
+
+        await api.sendMessage(
+          {
+            body: `${statusText}\n\n📎 Media URL:\n${url}`,
+            attachment: fs.createReadStream(filePath),
+          },
+          threadID,
+          () => {
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          },
+          messageID
+        );
+      } catch (downloadErr) {
+        console.warn("❌ Failed to download media:", downloadErr.message);
+        await api.sendMessage(`${statusText}\n\n📎 Media URL:\n${url}\n\n⚠️ Failed to attach media.`, threadID, messageID);
+      }
+
+      return;
+    }
+
+    // Otherwise assume JSON/text -> fetch full response
     const res = await axios.get(url, { timeout: 15000 });
     const data = res.data;
 
@@ -39,67 +83,37 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("⚠️ The API returned no response.", threadID, messageID);
     }
 
-    // Determine success or failed
-    const statusText =
-      data.status === true || data.success === true
-        ? "✅ Status: Success"
-        : "❌ Status: Failed";
-
     // Extract creator if exists
-    const creator = data.creator ? data.creator : null;
-    if (data.creator) delete data.creator;
+    const creator = (typeof data === "object" && data.creator) ? data.creator : null;
+    if (typeof data === "object" && data.creator) delete data.creator;
 
-    // Helper to find media URLs in the response
-    const findMediaUrls = (obj) => {
-      const urls = [];
-      const search = (value) => {
-        if (typeof value === "string") {
-          if (/\.(jpg|jpeg|png|gif|mp4|webm|mov|mkv)$/i.test(value)) {
-            urls.push(value);
-          }
-        } else if (typeof value === "object" && value !== null) {
-          Object.values(value).forEach(search);
+    // Format JSON/text
+    const formatObject = (obj, indent = 0) => {
+      let str = "";
+      const space = "  ".repeat(indent);
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === "object" && value !== null) {
+          str += `🔹 ${key}: {\n${formatObject(value, indent + 1)}${space}}\n`;
+        } else {
+          str += `🔹 ${key}: ${value}\n`;
         }
-      };
-      search(obj);
-      return urls;
+      }
+      return str;
     };
 
-    const mediaUrls = findMediaUrls(data);
+    let formatted = typeof data === "object" ? formatObject(data) : data.toString();
+    if (formatted.length > 20000) formatted = formatted.slice(0, 20000) + "\n\n[...truncated for length...]";
 
-    // Decide what to send
-    let message = `${statusText}`;
-    if (creator) message += `\n👤 Creator: ${creator}`;
+    let finalMessage = `📡 API Response:\n\n${statusText}`;
+    if (creator) finalMessage += `\n👤 Creator: ${creator}`;
+    finalMessage += `\n\n${formatted}`;
 
-    if (mediaUrls.length > 0) {
-      // Only display media URLs
-      message += `\n\n📎 Media URLs:\n${mediaUrls.join("\n")}`;
-    } else if (typeof data === "object") {
-      // Format JSON for text data
-      const formatObject = (obj, indent = 0) => {
-        let str = "";
-        const space = "  ".repeat(indent);
-        for (const [key, value] of Object.entries(obj)) {
-          if (typeof value === "object" && value !== null) {
-            str += `🔹 ${key}: {\n${formatObject(value, indent + 1)}${space}}\n`;
-          } else {
-            str += `🔹 ${key}: ${value}\n`;
-          }
-        }
-        return str;
-      };
-      message += `\n\n${formatObject(data)}`;
-    } else {
-      // Send as string if not object
-      message += `\n\n${data.toString()}`;
-    }
+    await api.sendMessage(finalMessage, threadID, messageID);
 
-    await api.sendMessage(message, threadID, messageID);
   } catch (err) {
     console.error("Error fetching API:", err.message);
     let errorMsg = "❌ Failed to fetch the provided API link.";
-    if (err.response)
-      errorMsg += `\nStatus: ${err.response.status} ${err.response.statusText}`;
+    if (err.response) errorMsg += `\nStatus: ${err.response.status} ${err.response.statusText}`;
     await api.sendMessage(errorMsg, threadID, messageID);
   }
 };
