@@ -1,14 +1,12 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 
 module.exports.config = {
   name: "apitest",
-  version: "1.1.0",
+  version: "1.1.1",
   role: 0,
   hasPrefix: false,
   aliases: ["fetchapi", "apitest"],
-  description: "Fetch and display the response directly from a provided API URL (includes media if available)",
+  description: "Fetch API response. If media URLs, send URLs only. If text, send text.",
   usage: "api <api_url>",
   credits: "Xren",
   cooldown: 3,
@@ -17,7 +15,6 @@ module.exports.config = {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
 
-  // Require a valid API URL
   if (!args[0]) {
     return api.sendMessage(
       "⚠️ Please provide a valid API URL.\n\nExample:\napi https://api-rynxzei.onrender.com/api/birdfact",
@@ -39,14 +36,20 @@ module.exports.run = async function ({ api, event, args }) {
     const data = res.data;
 
     if (!data) {
-      return api.sendMessage("⚠️ The API returned no data.", threadID, messageID);
+      return api.sendMessage("⚠️ The API returned no response.", threadID, messageID);
     }
 
-    // Detect creator and remove it from main object
+    // Determine success or failed
+    const statusText =
+      data.status === true || data.success === true
+        ? "✅ Status: Success"
+        : "❌ Status: Failed";
+
+    // Extract creator if exists
     const creator = data.creator ? data.creator : null;
     if (data.creator) delete data.creator;
 
-    // Find potential media URLs in response
+    // Helper to find media URLs in the response
     const findMediaUrls = (obj) => {
       const urls = [];
       const search = (value) => {
@@ -63,69 +66,40 @@ module.exports.run = async function ({ api, event, args }) {
     };
 
     const mediaUrls = findMediaUrls(data);
-    const attachments = [];
 
-    // Download and save media files temporarily
-    for (const [i, mediaUrl] of mediaUrls.entries()) {
-      try {
-        const ext = path.extname(mediaUrl).split("?")[0] || ".jpg";
-        const filePath = path.join(__dirname, `cache/api_media_${event.senderID}_${i}${ext}`);
-        const response = await axios.get(mediaUrl, { responseType: "arraybuffer" });
-        fs.writeFileSync(filePath, response.data);
-        attachments.push(fs.createReadStream(filePath));
-      } catch (err) {
-        console.warn("❌ Failed to download media:", mediaUrl);
-      }
-    }
-
-    // Format JSON output
-    const formatObject = (obj, indent = 0) => {
-      let str = "";
-      const space = "  ".repeat(indent);
-      for (const [key, value] of Object.entries(obj)) {
-        if (typeof value === "object" && value !== null) {
-          str += `🔹 ${key}: {\n${formatObject(value, indent + 1)}${space}}\n`;
-        } else {
-          str += `🔹 ${key}: ${value}\n`;
-        }
-      }
-      return str;
-    };
-
-    let formatted = typeof data === "object" ? formatObject(data) : data.toString();
-    if (formatted.length > 20000)
-      formatted = formatted.slice(0, 20000) + "\n\n[...truncated for length...]";
-
-    // Determine success or failed
-    const statusText =
-      data.status === true || data.success === true
-        ? "✅ Status: Success"
-        : "❌ Status: Failed";
-
-    let message = `📡 API Response:\n\n${statusText}\n\n${formatted}`;
+    // Decide what to send
+    let message = `${statusText}`;
     if (creator) message += `\n👤 Creator: ${creator}`;
 
-    // Send formatted response with media if exists
-    await api.sendMessage(
-      {
-        body: message,
-        attachment: attachments.length > 0 ? attachments : null,
-      },
-      threadID,
-      async () => {
-        // Cleanup cache
-        attachments.forEach((file) => {
-          const filePath = file.path;
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        });
-      },
-      messageID
-    );
+    if (mediaUrls.length > 0) {
+      // Only display media URLs
+      message += `\n\n📎 Media URLs:\n${mediaUrls.join("\n")}`;
+    } else if (typeof data === "object") {
+      // Format JSON for text data
+      const formatObject = (obj, indent = 0) => {
+        let str = "";
+        const space = "  ".repeat(indent);
+        for (const [key, value] of Object.entries(obj)) {
+          if (typeof value === "object" && value !== null) {
+            str += `🔹 ${key}: {\n${formatObject(value, indent + 1)}${space}}\n`;
+          } else {
+            str += `🔹 ${key}: ${value}\n`;
+          }
+        }
+        return str;
+      };
+      message += `\n\n${formatObject(data)}`;
+    } else {
+      // Send as string if not object
+      message += `\n\n${data.toString()}`;
+    }
+
+    await api.sendMessage(message, threadID, messageID);
   } catch (err) {
     console.error("Error fetching API:", err.message);
     let errorMsg = "❌ Failed to fetch the provided API link.";
     if (err.response)
-      errorMsg += `\n\nStatus: ${err.response.status} ${err.response.statusText}`;
+      errorMsg += `\nStatus: ${err.response.status} ${err.response.statusText}`;
     await api.sendMessage(errorMsg, threadID, messageID);
   }
 };
