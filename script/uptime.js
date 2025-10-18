@@ -1,70 +1,84 @@
 const axios = require("axios");
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
   name: "uptime",
   version: "1.0.0",
   role: 0,
-  hasPrefix: true,
-  aliases: ["botuptime", "upvid"],
-  description: "Get bot uptime video from Kaiz API.",
-  usage: "uptime",
-  credits: "Kaizenji, VernesG",
-  cooldown: 10,
+  hasPrefix: false,
+  aliases: ["uptimebot", "botuptime"],
+  description: "Check bot uptime using Kaiz API",
+  usage: "uptime <Instagram> <GitHub> <Facebook> <hours> <minutes> <seconds> <botname>",
+  credits: "Xren",
+  cooldown: 3,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const threadID = event.threadID;
-  const messageID = event.messageID;
+  const { threadID, messageID, senderID } = event;
 
-  // You can change these values if you want to make them dynamic via args
-  const instag = "vernesg";
-  const ghub = "https://github.com/vernesg";
-  const fb = "https://www.facebook.com/profile.php?id=61581526372855";
-  const hours = "24 hours";
-  const minutes = "60 minutes";
-  const seconds = "60 seconds";
-  const botname = "Nax";
-  const apikey = "4fe7e522-70b7-420b-a746-d7a23db49ee5";
+  if (args.length < 7) {
+    return api.sendMessage(
+      "⚠️ Usage:\nuptime <Instagram> <GitHub> <Facebook> <hours> <minutes> <seconds> <botname>\nExample:\nuptime Xren https://github.com/blep111 https://www.facebook.com/profile.php?id=61582034805699 12 20 10 Xren",
+      threadID,
+      messageID
+    );
+  }
 
-  const apiUrl = `https://kaiz-apis.gleeze.com/api/uptime?instag=${encodeURIComponent(instag)}&ghub=${encodeURIComponent(ghub)}&fb=${encodeURIComponent(fb)}&hours=${encodeURIComponent(hours)}&minutes=${encodeURIComponent(minutes)}&seconds=${encodeURIComponent(seconds)}&botname=${encodeURIComponent(botname)}&apikey=${apikey}`;
+  const [instag, ghub, fb, hours, minutes, seconds, botname] = args;
+
+  const apiURL = `https://kaiz-apis.gleeze.com/api/uptime?instag=${encodeURIComponent(instag)}&ghub=${encodeURIComponent(ghub)}&fb=${encodeURIComponent(fb)}&hours=${hours}&minutes=${minutes}&seconds=${seconds}&botname=${encodeURIComponent(botname)}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+
+  await api.sendMessage("⏳ Fetching uptime data...", threadID, messageID);
 
   try {
-    // Call Kaiz API
-    const resp = await axios.get(apiUrl);
-    const data = resp.data;
-    // Check for video field (not image)
-    if (!data || !data.video) {
-      return api.sendMessage(`❌ Could not get uptime video for ${botname}`, threadID, messageID);
+    const res = await axios.get(apiURL, { timeout: 15000 });
+    const data = res.data;
+
+    if (!data) {
+      return api.sendMessage("❌ Failed to fetch uptime info.", threadID, messageID);
     }
 
-    // Download video file
-    const videoResp = await axios.get(data.video, { responseType: "stream" });
-    const fileName = `${messageID}-uptime.mp4`;
-    const filePath = path.join(__dirname, fileName);
-    const writer = fs.createWriteStream(filePath);
-    videoResp.data.pipe(writer);
+    // Prepare cache folder
+    const cacheDir = path.join(__dirname, "cache");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
-    writer.on("finish", async () => {
-      await api.sendMessage(
-        {
-          body: `🤖 Uptime for ${botname}`,
-          attachment: fs.createReadStream(filePath),
-        },
-        threadID,
-        () => fs.unlink(filePath, () => {}),
-        messageID
-      );
-    });
+    // Download image if exists
+    let attachment = null;
+    if (data.image) {
+      try {
+        const imgRes = await axios.get(data.image, { responseType: "arraybuffer" });
+        const filePath = path.join(cacheDir, `uptime_${senderID}.png`);
+        fs.writeFileSync(filePath, imgRes.data);
+        attachment = fs.createReadStream(filePath);
+      } catch (imgErr) {
+        console.warn("Failed to download image:", imgErr.message);
+      }
+    }
 
-    writer.on("error", (err) => {
-      console.error("File write error:", err);
-      api.sendMessage("❌ Error downloading uptime video.", threadID, messageID);
-    });
+    // Build message
+    let message = `📡 Bot Uptime Info\n\n`;
+    if (data.botname) message += `🤖 Bot Name: ${data.botname}\n`;
+    if (data.hours !== undefined && data.minutes !== undefined && data.seconds !== undefined)
+      message += `⏱ Uptime: ${data.hours}h ${data.minutes}m ${data.seconds}s\n`;
+    if (data.instag) message += `📸 Instagram: ${data.instag}\n`;
+    if (data.ghub) message += `💻 GitHub: ${data.ghub}\n`;
+    if (data.fb) message += `📘 Facebook: ${data.fb}\n`;
+
+    await api.sendMessage(
+      { body: message, attachment: attachment },
+      threadID,
+      () => {
+        // Cleanup image
+        if (attachment && fs.existsSync(attachment.path)) fs.unlinkSync(attachment.path);
+      },
+      messageID
+    );
 
   } catch (err) {
-    console.error("Uptime API error:", err);
-    return api.sendMessage("❌ Failed to get uptime video. Please try again later.", threadID, messageID);
+    console.error("Error fetching uptime API:", err.message);
+    let errorMsg = "❌ Failed to fetch uptime API.";
+    if (err.response) errorMsg += `\nStatus: ${err.response.status} ${err.response.statusText}`;
+    await api.sendMessage(errorMsg, threadID, messageID);
   }
 };
