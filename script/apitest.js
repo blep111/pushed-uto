@@ -1,69 +1,82 @@
 const axios = require("axios");
 
 module.exports.config = {
-  name: "api",
-  version: "1.0.1",
+  name: "apitest",
+  version: "1.0.4",
   role: 0,
   hasPrefix: false,
   aliases: ["fetchapi", "apitest"],
-  description: "Fetch and display API response from a given URL",
+  description: "Fetch and display the response directly from a provided API URL",
   usage: "api <api_url>",
-  credits: "Xren",
+  credits: "DeansG Mangubat",
   cooldown: 3,
 };
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
 
+  // ✅ Require a valid URL
   if (!args[0]) {
     return api.sendMessage(
-      "⚠️ Please provide an API URL.\n\nExample:\napi https://api-rynxzei.onrender.com/api/birdfact",
+      "⚠️ Please provide a valid API URL.\n\nExample:\napi https://api-rynxzei.onrender.com/api/birdfact",
       threadID,
       messageID
     );
   }
 
-  const userUrl = args[0].trim();
+  const url = args[0].trim();
 
-  // Validate URL format
-  if (!/^https?:\/\//i.test(userUrl)) {
-    return api.sendMessage("❌ Invalid URL. Please include https:// or http://", threadID, messageID);
+  // ✅ Check format
+  if (!/^https?:\/\//i.test(url)) {
+    return api.sendMessage("❌ Invalid URL. Must start with http:// or https://", threadID, messageID);
   }
 
-  await api.sendMessage("⏳ Fetching API data, please wait...", threadID, messageID);
+  // Notify user
+  await api.sendMessage("⏳ Fetching data from the provided API URL...", threadID, messageID);
 
   try {
-    // ✅ Correct encoding and call to Rynxzei API
-    const apiUrl = `https://api-rynxzei.onrender.com/api/apitest?url=${encodeURIComponent(userUrl)}`;
-    const res = await axios.get(apiUrl);
+    // ✅ Fetch user-provided API directly
+    const res = await axios.get(url, { timeout: 10000 });
 
     if (!res.data) {
-      return api.sendMessage("⚠️ No response from API.", threadID, messageID);
+      return api.sendMessage("⚠️ The API returned no response.", threadID, messageID);
     }
 
     let data = res.data;
-    let output = "";
 
-    // ✅ Auto-format JSON
-    if (typeof data === "object") {
-      output = Object.entries(data)
-        .map(([key, value]) => `🔹 ${key}: ${typeof value === "object" ? JSON.stringify(value, null, 2) : value}`)
-        .join("\n");
-    } else {
-      output = data.toString();
+    // ✅ Remove only the top-level "creator" key
+    if (data.creator) {
+      delete data.creator;
     }
 
-    // Limit very large text
-    if (output.length > 20000) output = output.slice(0, 20000) + "\n\n[...truncated...]";
+    // ✅ Format object neatly
+    const formatObject = (obj, indent = 0) => {
+      let str = "";
+      const space = "  ".repeat(indent);
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === "object" && value !== null) {
+          str += `🔹 ${key}: {\n${formatObject(value, indent + 1)}${space}}\n`;
+        } else {
+          str += `🔹 ${key}: ${value}\n`;
+        }
+      }
+      return str;
+    };
 
-    await api.sendMessage(`📡 API Response:\n\n${output}`, threadID, messageID);
+    let formatted =
+      typeof data === "object" ? formatObject(data) : data.toString();
+
+    if (formatted.length > 20000)
+      formatted =
+        formatted.slice(0, 20000) + "\n\n[...truncated for length...]";
+
+    await api.sendMessage(`📡 API Response:\n\n${formatted}`, threadID, messageID);
 
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    let msg = "❌ Failed to fetch API data.";
-    if (err.response?.status === 400)
-      msg += "\n\n⚠️ The API URL might be invalid, inaccessible, or not returning proper data.";
-    else msg += `\n\nError: ${err.message}`;
-    await api.sendMessage(msg, threadID, messageID);
+    console.error("Error fetching API:", err.message);
+    let errorMsg = "❌ Failed to fetch the provided API link.";
+    if (err.response)
+      errorMsg += `\n\nStatus: ${err.response.status} ${err.response.statusText}`;
+    await api.sendMessage(errorMsg, threadID, messageID);
   }
 };
