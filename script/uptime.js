@@ -4,59 +4,65 @@ const path = require("path");
 
 module.exports.config = {
   name: "uptime",
-  version: "1.5.0",
+  version: "1.9.0",
   role: 0,
   hasPrefix: false,
   aliases: ["uptimebot"],
-  description: "Fetch bot uptime as an image with time and IG name",
+  description: "Live bot uptime with dynamic image updates every second",
   usage: "uptime",
   credits: "Xren",
   cooldown: 3,
 };
 
 module.exports.run = async function ({ api, event }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, senderID } = event;
 
-  await api.sendMessage("⏳ Fetching uptime image...", threadID, messageID);
+  const instag = "Xren";
+  const ghub = "Xren dev";
+  const fb = "Xren";
+  const botname = "Xx";
 
-  try {
-    // Preset API parameters
-    const instag = "Xren";
-    const ghub = "https://github.com/blep111";
-    const fb = "https://www.facebook.com/profile.php?id=61582034805699";
-    const botname = "Xren";
+  const cacheDir = path.join(__dirname, "cache");
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
 
-    // API URL: use 0 for time to let API calculate uptime
-    const hours = 0;
-    const minutes = 0;
-    const seconds = 0;
+  const startTime = Date.now();
+
+  // Send initial placeholder message
+  let sentMsg = await api.sendMessage("⏱ Fetching live uptime image...", threadID);
+
+  const updateImage = async () => {
+    const elapsed = Date.now() - startTime;
+    const hours = Math.floor(elapsed / 3600000);
+    const minutes = Math.floor((elapsed % 3600000) / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
 
     const apiURL = `https://kaiz-apis.gleeze.com/api/uptime?instag=${encodeURIComponent(instag)}&ghub=${encodeURIComponent(ghub)}&fb=${encodeURIComponent(fb)}&hours=${hours}&minutes=${minutes}&seconds=${seconds}&botname=${encodeURIComponent(botname)}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
 
-    const res = await axios.get(apiURL, { responseType: "arraybuffer", timeout: 15000 });
+    try {
+      const res = await axios.get(apiURL, { responseType: "arraybuffer" });
+      const filePath = path.join(cacheDir, `uptime_${senderID}.png`);
+      fs.writeFileSync(filePath, res.data);
 
-    // Prepare cache folder
-    const cacheDir = path.join(__dirname, "cache");
-    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+      // Edit previous message with updated image
+      await api.changeMessage(
+        { body: `⏱ Live Bot Uptime: ${hours}h ${minutes}m ${seconds}s`, attachment: fs.createReadStream(filePath) },
+        threadID,
+        sentMsg.messageID
+      );
 
-    // Save the image
-    const filePath = path.join(cacheDir, `uptime_${senderID}.png`);
-    fs.writeFileSync(filePath, res.data);
+      // Cleanup
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (err) {
+      console.error("Error fetching uptime image:", err.message);
+    }
+  };
 
-    // Send success message with image attached
-    await api.sendMessage(
-      { body: "✅ Bot uptime fetched successfully!", attachment: fs.createReadStream(filePath) },
-      threadID,
-      () => {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      },
-      messageID
-    );
+  // Initial update
+  updateImage();
 
-  } catch (err) {
-    console.error("Error fetching uptime API image:", err.message);
-    let errorMsg = "❌ Failed to fetch uptime image from API.";
-    if (err.response) errorMsg += `\nStatus: ${err.response.status} ${err.response.statusText}`;
-    await api.sendMessage(errorMsg, threadID, messageID);
-  }
+  // Update every 1 second
+  const interval = setInterval(updateImage, 1000);
+
+  // Optional: stop after a very long time (e.g., 24 hours)
+  // setTimeout(() => clearInterval(interval), 24 * 60 * 60 * 1000);
 };
