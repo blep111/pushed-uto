@@ -1,16 +1,16 @@
-const ytdl = require("ytdl-core");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const ytdl = require("ytdl-core");
 
 module.exports.config = {
   name: "yt",
-  version: "1.0.4",
+  version: "1.0.2",
   role: 0,
   hasPrefix: false,
-  aliases: ["ytv", "ytvideo"],
-  description: "Search YouTube and send the first video as MP4 with thumbnail",
-  usage: "youtubevideo [search query]",
+  aliases: ["ytv", "ytsearch"],
+  description: "Fetch and send the first YouTube video result by title",
+  usage: "ytvideo <search title>",
   credits: "Xren",
   cooldown: 5,
 };
@@ -20,86 +20,59 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!args[0]) {
     return api.sendMessage(
-      "❌ Please provide a search keyword.\n\nUsage: youtubevideo [search query]",
+      "⚠️ Please provide a YouTube video title.\n\nExample:\nytvideo multo cup of Joe",
       threadID,
       messageID
     );
   }
 
   const query = encodeURIComponent(args.join(" "));
-  const searchURL = `https://kaiz-apis.gleeze.com/api/ytsearch?q=${query}&apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5`;
+  const apiURL = `https://api.ccprojectsapis-jonell.gleeze.com/api/ytsearch?title=${query}`;
 
-  await api.sendMessage("🎬 Searching YouTube and preparing video...", threadID, messageID);
+  const cacheDir = path.join(__dirname, "cache");
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+
+  const videoPath = path.join(cacheDir, `yt_${senderID}_${Date.now()}.mp4`);
 
   try {
-    // Search YouTube
-    const searchRes = await axios.get(searchURL);
-    const results = searchRes.data.items;
+    api.sendMessage("🎬 Searching YouTube and fetching the first video...", threadID, messageID);
 
-    if (!results || results.length === 0) {
-      return api.sendMessage("❌ No video found.", threadID, messageID);
+    // 🔍 Fetch the first video data
+    const res = await axios.get(apiURL);
+    const data = res.data;
+
+    if (!data || !data.url) {
+      return api.sendMessage("❌ No video found for your search.", threadID, messageID);
     }
 
-    const video = results[0]; // ✅ only first result
-    const { title, url, thumbnail } = video;
+    const videoUrl = data.url; // ✅ first result only
+    const videoTitle = data.title || "Untitled Video";
 
-    // Prepare cache folder
-    const cacheDir = path.join(__dirname, "cache");
-    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
-
-    const videoPath = path.join(cacheDir, `yt_${senderID}.mp4`);
-    const thumbPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
-
-    // Download thumbnail
-    try {
-      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
-      fs.writeFileSync(thumbPath, imgRes.data);
-    } catch (errThumb) {
-      console.warn("Could not download thumbnail:", errThumb);
-    }
-
-    // Download YouTube video
-    const videoStream = ytdl(url, { quality: "highestvideo" });
+    // 🎥 Download the video
+    const stream = ytdl(videoUrl, { quality: "highestvideo" });
     const writeStream = fs.createWriteStream(videoPath);
-    videoStream.pipe(writeStream);
+    stream.pipe(writeStream);
+
+    stream.on("error", (err) => {
+      console.error("Download error:", err);
+      api.sendMessage("❌ Failed to download the video.", threadID, messageID);
+    });
 
     writeStream.on("finish", async () => {
-      // Send thumbnail first
       await api.sendMessage(
         {
-          body: `🎬 ${title}`,
-          attachment: fs.existsSync(thumbPath) ? fs.createReadStream(thumbPath) : null,
+          body: `🎬 ${videoTitle}\n\n📺 Source: YouTube\n👑 Credits: Xren`,
+          attachment: fs.createReadStream(videoPath),
         },
         threadID,
         () => {
-          // Then send video
-          api.sendMessage(
-            {
-              body: "📹 Here’s your video!",
-              attachment: fs.createReadStream(videoPath),
-            },
-            threadID,
-            () => {
-              // Cleanup temporary files
-              if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
-              if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
-            }
-          );
+          // Cleanup after sending
+          if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
         }
       );
     });
-
-    videoStream.on("error", (err) => {
-      console.error("Video download error:", err);
-      return api.sendMessage("❌ Failed to download video.", threadID, messageID);
-    });
-
   } catch (err) {
-    console.error("YouTube video command error:", err);
-    return api.sendMessage(
-      "❌ An error occurred while fetching the video. Please try again later.",
-      threadID,
-      messageID
-    );
+    console.error("Error fetching video:", err);
+    api.sendMessage("❌ Failed to fetch or process the video. Please try again later.", threadID, messageID);
   }
 };
