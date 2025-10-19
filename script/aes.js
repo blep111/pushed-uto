@@ -1,59 +1,42 @@
 const axios = require("axios");
-const fs = require("fs");
+const fs = require("fs-extra");
 const path = require("path");
 
 module.exports.config = {
   name: "aes",
-  version: "1.0.0",
+  version: "1.1.0",
   role: 0,
-  hasPrefix: false,
-  aliases: ["aestheticimg", "aestheticgen"],
-  description: "Generate an aesthetic image with text, author, and color",
-  usage: "aesthetic <text> | <author> | <color>",
+  aliases: ["aesth"],
+  description: "Generate aesthetic styled image using API",
+  usage: "<text> | <author> | <color>",
   credits: "Xren",
   cooldown: 3,
 };
 
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID } = event;
-
-  // Example: aesthetic hello world | cc | white
-  const input = args.join(" ").split("|").map(a => a.trim());
-
-  const text = input[0];
-  const author = input[1] || "Unknown";
+module.exports.run = async function({ api, event, args }) {
+  const input = args.join(" ").split("|").map(v => v.trim());
+  const text = input[0] || "Hello World";
+  const author = input[1] || "Xren";
   const color = input[2] || "white";
 
-  if (!text) {
-    return api.sendMessage(
-      "⚠️ Please provide input.\n\nExample:\naesthetic hello world | cc | white",
-      threadID,
-      messageID
-    );
-  }
+  const apiUrl = `https://api.ccprojectsapis-jonell.gleeze.com/api/aesthetic?text=${encodeURIComponent(text)}&author=${encodeURIComponent(author)}&color=${encodeURIComponent(color)}`;
 
-  const imagePath = path.join(__dirname, "cache", `aesthetic_${Date.now()}.png`);
-  const cacheDir = path.join(__dirname, "cache");
-  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+  const msg = await api.sendMessage("🎨 Generating aesthetic image...", event.threadID);
 
   try {
-    api.sendMessage("🎨 Generating aesthetic image...", threadID, messageID);
+    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
 
-    const apiURL = `https://api.ccprojectsapis-jonell.gleeze.com/api/aesthetic?text=${encodeURIComponent(text)}&author=${encodeURIComponent(author)}&color=${encodeURIComponent(color)}`;
+    // Save the image temporarily
+    const imgPath = path.join(__dirname, `/cache/aesthetic_${event.senderID}.png`);
+    fs.writeFileSync(imgPath, response.data);
 
-    const response = await axios.get(apiURL, { responseType: "arraybuffer" });
-    fs.writeFileSync(imagePath, response.data);
+    await api.sendMessage({
+      body: `✨ Aesthetic Image Generated!\n\n🖊 Text: ${text}\n👤 Author: ${author}\n🎨 Color: ${color}\n\nCredits: Xren`,
+      attachment: fs.createReadStream(imgPath)
+    }, event.threadID, () => fs.unlinkSync(imgPath), msg.messageID);
 
-    await api.sendMessage(
-      {
-        body: `📸 Aesthetic Image Generated!\n\n🖋 Text: ${text}\n👤 Author: ${author}\n🎨 Color: ${color}`,
-        attachment: fs.createReadStream(imagePath),
-      },
-      threadID,
-      () => fs.unlinkSync(imagePath) // cleanup after sending
-    );
   } catch (error) {
-    console.error("❌ Error fetching aesthetic image:", error.message);
-    api.sendMessage("❌ Failed to generate aesthetic image. Please try again.", threadID, messageID);
+    console.error("❌ Error fetching API:", error.message);
+    api.sendMessage("❌ Failed to generate the aesthetic image.\nCheck your input or API availability.", event.threadID, msg.messageID);
   }
 };
