@@ -1,63 +1,80 @@
-const axios = require('axios');
-const path = require('path');
-const fs = require('fs-extra');
+const axios = require("axios");
+const path = require("path");
+const fs = require("fs-extra");
 
 module.exports.config = {
-    name: "shoti",
+    name: "spotify",
     version: "1.0.0",
     role: 0,
-    description: "Fetch a random Shoti video.",
+    description: "Fetch a Spotify song with its audio and cover.",
     prefix: false,
     premium: false,
-    credits: "Vern",
-    cooldowns: 10,
+    credits: "Gab",
+    cooldowns: 3,
     category: "media"
 };
 
-module.exports.run = async function ({ api, event }) {
+module.exports.run = async function ({ api, event, args }) {
     try {
-        // Inform user about the fetching process
-        api.sendMessage("🎬 𝗙𝗲𝘁𝗰𝗵𝗶𝗻𝗴 𝗮 𝗿𝗮𝗻𝗱𝗼𝗺 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼, 𝗽𝗹𝗲𝗮𝘀𝗲 𝘄𝗮𝗶𝘁...", event.threadID, event.messageID);
-
-        // API call
-        const response = await axios.get('https://kaiz-apis.gleeze.com/api/shoti?apikey=4fe7e522-70b7-420b-a746-d7a23db49ee5');
-        //console.log(response.data); // For debugging
-
-        const shoti = response.data?.shoti;
-        const videoUrl = shoti?.videoUrl;
-        if (!videoUrl) {
-            return api.sendMessage('❌ 𝗙𝗮𝗶𝗹𝗲𝗱 𝘁𝗼 𝗴𝗲𝘁 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼. 𝗣𝗹𝗲𝗮𝘀𝗲 𝘁𝗿𝘆 𝗮𝗴𝗮𝗶𝗻 𝗹𝗮𝘁𝗲𝗿.', event.threadID, event.messageID);
+        // Get song name from user input
+        const songName = args.join(" ");
+        if (!songName) {
+            return api.sendMessage("🎶 Please enter a song name.\nExample: spotify multo cup of joe", event.threadID, event.messageID);
         }
 
-        const fileName = `${event.messageID}.mp4`;
+        // Notify user
+        api.sendMessage(`🎧 Searching for “${songName}” on Spotify, please wait...`, event.threadID, event.messageID);
+
+        // API request
+        const response = await axios.get(`https://api-library-kohi.onrender.com/api/spotify?song=${encodeURIComponent(songName)}`);
+        const data = response.data?.data;
+
+        if (!data || !data.audioUrl) {
+            return api.sendMessage("❌ Song not found or failed to fetch audio.", event.threadID, event.messageID);
+        }
+
+        const fileName = `${event.messageID}.mp3`;
         const filePath = path.join(__dirname, fileName);
 
-        const downloadResponse = await axios({
-            method: 'GET',
-            url: videoUrl,
-            responseType: 'stream',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+        // Download audio
+        const audioResponse = await axios({
+            method: "GET",
+            url: data.audioUrl,
+            responseType: "stream",
+            headers: { "User-Agent": "Mozilla/5.0" }
         });
 
         const writer = fs.createWriteStream(filePath);
-        downloadResponse.data.pipe(writer);
+        audioResponse.data.pipe(writer);
 
-        writer.on('close', async () => {
+        writer.on("close", async () => {
+            // Send audio with song info and cover thumbnail
             api.sendMessage({
-                body: `🎥 𝗛𝗲𝗿𝗲’𝘀 𝘆𝗼𝘂𝗿 𝗿𝗮𝗻𝗱𝗼𝗺 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼!\n\n👤 Author: ${shoti.author}\n📜 Title: ${shoti.title}\n⏱️ Duration: ${shoti.duration}s\n🌎 Region: ${shoti.region}`,
+                body: `🎵 𝗛𝗲𝗿𝗲’𝘀 𝘆𝗼𝘂𝗿 𝗦𝗽𝗼𝘁𝗶𝗳𝘆 𝘀𝗼𝗻𝗴!\n\n🎶 Title: ${data.title}\n👤 Artist: ${data.artist}\n🕒 Duration: ${data.duration}`,
                 attachment: fs.createReadStream(filePath)
-            }, event.threadID, () => {
-                fs.unlinkSync(filePath); // Cleanup
+            }, event.threadID, async () => {
+                // Send thumbnail after sending audio
+                await api.sendMessage({
+                    body: "🖼️ 𝗔𝗹𝗯𝘂𝗺 𝗖𝗼𝘃𝗲𝗿",
+                    attachment: await axios({
+                        method: "GET",
+                        url: data.thumbnail,
+                        responseType: "stream"
+                    }).then(res => res.data)
+                }, event.threadID);
+
+                // Cleanup temp file
+                fs.unlinkSync(filePath);
             }, event.messageID);
         });
 
-        writer.on('error', (err) => {
-            console.error('Writer error:', err);
-            api.sendMessage('🚫 𝗘𝗿𝗿𝗼𝗿 𝗱𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗶𝗻𝗴 𝘁𝗵𝗲 𝘃𝗶𝗱𝗲𝗼. 𝗣𝗹𝗲𝗮𝘀𝗲 𝘁𝗿𝘆 𝗮𝗴𝗮𝗶𝗻.', event.threadID, event.messageID);
+        writer.on("error", err => {
+            console.error("Writer error:", err);
+            api.sendMessage("🚫 Error downloading the audio. Please try again later.", event.threadID, event.messageID);
         });
 
     } catch (error) {
-        console.error('Error fetching Shoti video:', error);
-        api.sendMessage('🚫 𝗘𝗿𝗿𝗼𝗿 𝗳𝗲𝘁𝗰𝗵𝗶𝗻𝗴 𝗦𝗵𝗼𝘁𝗶 𝘃𝗶𝗱𝗲𝗼. 𝗧𝗿𝘆 𝗮𝗴𝗮𝗶𝗻 𝗹𝗮𝘁𝗲𝗿.', event.threadID, event.messageID);
+        console.error("Error fetching Spotify song:", error);
+        api.sendMessage("🚫 Failed to fetch song. Try again later.", event.threadID, event.messageID);
     }
 };
