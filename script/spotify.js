@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "spotify",
-  version: "1.3.0",
+  version: "1.3.1",
   role: 0,
   hasPrefix: false,
   aliases: [],
@@ -15,9 +15,7 @@ module.exports.config = {
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const threadID = event.threadID;
-  const messageID = event.messageID;
-  const senderID = event.senderID;
+  const { threadID, messageID, senderID } = event;
 
   if (!args[0]) {
     return api.sendMessage(
@@ -34,36 +32,51 @@ module.exports.run = async function ({ api, event, args }) {
 
   try {
     const res = await axios.get(apiURL);
-    const data = res.data;
+    const result = res.data;
 
-    if (!data.status || !data.data || !data.data.audioUrl) {
-      return api.sendMessage("❌ No song found or API error.", threadID, messageID);
+    // Log structure (optional)
+    console.log("Spotify API Response:", JSON.stringify(result, null, 2));
+
+    if (!result || !result.status || !result.data) {
+      return api.sendMessage(
+        "❌ API returned an unexpected response or no results found.",
+        threadID,
+        messageID
+      );
     }
 
-    const { title, artist, thumbnail, audioUrl, duration } = data.data;
+    const { title, artist, thumbnail, audioUrl, duration } = result.data;
+
+    if (!audioUrl) {
+      return api.sendMessage("❌ Audio URL not found in API response.", threadID, messageID);
+    }
 
     const imgPath = path.join(__dirname, "cache", `cover_${senderID}.jpg`);
     const audioPath = path.join(__dirname, "cache", `track_${senderID}.mp3`);
 
-    // Download thumbnail
+    // Download thumbnail safely
     if (thumbnail) {
-      const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
-      fs.writeFileSync(imgPath, imgRes.data);
+      try {
+        const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+        fs.writeFileSync(imgPath, imgRes.data);
+      } catch (e) {
+        console.warn("⚠️ Failed to download thumbnail:", e.message);
+      }
     }
 
     // Download audio
     const audioRes = await axios.get(audioUrl, { responseType: "arraybuffer" });
     fs.writeFileSync(audioPath, audioRes.data);
 
-    // Send cover with song info
+    // Send the cover and info
     api.sendMessage(
       {
-        body: `🎵 Title: ${title}\n👤 Artist: ${artist}\n⏱ Duration: ${duration}`,
-        attachment: thumbnail ? fs.createReadStream(imgPath) : undefined,
+        body: `🎵 Title: ${title}\n👤 Artist: ${artist}\n⏱ Duration: ${duration || "Unknown"}`,
+        attachment: fs.existsSync(imgPath) ? fs.createReadStream(imgPath) : undefined,
       },
       threadID,
       () => {
-        // Then send audio file
+        // Then send the audio file
         api.sendMessage(
           {
             body: "🎧 Here’s your Spotify track!",
@@ -71,7 +84,7 @@ module.exports.run = async function ({ api, event, args }) {
           },
           threadID,
           () => {
-            // Clean up files after sending
+            // Cleanup after sending
             if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
             if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
           }
@@ -79,7 +92,11 @@ module.exports.run = async function ({ api, event, args }) {
       }
     );
   } catch (err) {
-    console.error("Spotify command error:", err);
-    return api.sendMessage("❌ An error occurred while fetching the song.", threadID, messageID);
+    console.error("❌ Spotify command error:", err);
+    return api.sendMessage(
+      `❌ An error occurred while fetching the song.\n\nError: ${err.message}`,
+      threadID,
+      messageID
+    );
   }
 };
