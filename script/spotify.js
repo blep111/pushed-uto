@@ -8,14 +8,16 @@ module.exports.config = {
   role: 0,
   hasPrefix: false,
   aliases: [],
-  description: "Search and download Spotify music.",
+  description: "Search and download Spotify track.",
   usage: "spotify [song name]",
   credits: "Gab",
   cooldown: 5,
 };
 
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const threadID = event.threadID;
+  const messageID = event.messageID;
+  const senderID = event.senderID;
 
   if (!args[0]) {
     return api.sendMessage(
@@ -25,59 +27,57 @@ module.exports.run = async function ({ api, event, args }) {
     );
   }
 
-  const query = encodeURIComponent(args.join(" "));
-  const apiURL = `https://ace-rest-api.onrender.com/api/spotify?search=${query}`;
+  const keyword = encodeURIComponent(args.join(" "));
+  const apiURL = `https://api-library-kohi.onrender.com/api/spotify?song=${keyword}`;
 
-  await api.sendMessage("🎧 Searching Spotify, please wait...", threadID, messageID);
+  await api.sendMessage("🎧 Fetching your song, please wait...", threadID, messageID);
 
   try {
     const response = await axios.get(apiURL);
     const data = response.data;
 
-    if (!data || !data.title || !data.downloadUrl) {
-      return api.sendMessage("❌ No result found for that song.", threadID, messageID);
+    if (!data || !data.url) {
+      return api.sendMessage("❌ No Spotify track found.", threadID, messageID);
     }
 
-    // Create cache folder if missing
-    const cacheDir = path.join(__dirname, "cache");
-    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+    const { title, artist, thumbnail, url } = data;
 
-    const imgPath = path.join(cacheDir, `thumb_${senderID}.jpg`);
-    const audioPath = path.join(cacheDir, `audio_${senderID}.mp3`);
+    const imgPath = path.join(__dirname, "cache", `thumb_${senderID}.jpg`);
+    const audioPath = path.join(__dirname, "cache", `audio_${senderID}.mp3`);
 
     // Download thumbnail
-    const thumbRes = await axios.get(data.thumbnail, { responseType: "arraybuffer" });
-    fs.writeFileSync(imgPath, thumbRes.data);
+    const imgRes = await axios.get(thumbnail, { responseType: "arraybuffer" });
+    fs.writeFileSync(imgPath, imgRes.data);
 
     // Download audio
-    const audioRes = await axios.get(data.downloadUrl, { responseType: "arraybuffer" });
+    const audioRes = await axios.get(url, { responseType: "arraybuffer" });
     fs.writeFileSync(audioPath, audioRes.data);
 
-    // Send details first
+    // Send song info + thumbnail
     api.sendMessage(
       {
-        body: `🎵 Title: ${data.title}\n👤 Artist: ${data.artist || "Unknown"}\n💽 Album: ${data.album || "N/A"}`,
+        body: `🎵 Title: ${title}\n👤 Artist: ${artist}`,
         attachment: fs.createReadStream(imgPath),
       },
       threadID,
       () => {
-        // Then send the audio
+        // Then send the audio file
         api.sendMessage(
           {
-            body: "🎶 Here's your Spotify track!",
+            body: "🎧 Here's your Spotify track!",
             attachment: fs.createReadStream(audioPath),
           },
           threadID,
           () => {
-            // Clean up files
+            // Clean up cache
             fs.unlinkSync(imgPath);
             fs.unlinkSync(audioPath);
           }
         );
       }
     );
-  } catch (err) {
-    console.error("Spotify command error:", err);
-    return api.sendMessage("❌ An error occurred while fetching the song.", threadID, messageID);
+  } catch (error) {
+    console.error("Spotify command error:", error);
+    return api.sendMessage("❌ An error occurred while processing your request.", threadID, messageID);
   }
 };
