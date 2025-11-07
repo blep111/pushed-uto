@@ -2,7 +2,7 @@ module.exports.config = {
 		name: "babye",
 		version: "1.0.0",
 		role: 2,
-		credits: "Vern",
+		credits: "vrax",
 		description: "Remove all group members.",
 		usages: "{p}kickall",
 		hasPrefix: false,
